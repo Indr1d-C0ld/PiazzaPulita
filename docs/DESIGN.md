@@ -722,7 +722,7 @@ gioco.
 | **F3** ✔ | Denaro e logistica: depositi, mezzi, sporco/pulito, riciclaggio, usuraio, spese fisse | un giocatore completa un ciclo economico intero e il bilancio quadra — **fatta il 19/09/2026** (i carichi affidati a terzi slittano a F5, con l'organico) |
 | **F4** ✔ | Legge: calore, controlli, posti di blocco, fascicoli, perquisizioni, arresti, carcere, avvocati, corruzione | un giocatore che esagera viene visto, avvisato, e preso — **fatta il 19/09/2026** (i pentiti slittano a F5, con l'organico) |
 | **F5** ✔ | Personaggio: attributi, reputazione a due assi, organico con lealtà, pentiti, corrieri, fornitori | la progressione è leggibile su 20 ore di gioco simulato — **fatta il 19/09/2026** |
-| **F6** | Multigiocatore: PvP e bottino, pubblico nemico, rapine ai carichi, soffiate, spie, batterie, territorio, cronaca | due account che si fanno la guerra in tutti i modi previsti |
+| **F6** ✔ | Multigiocatore: PvP e bottino, pubblico nemico, rapine ai carichi, soffiate, spie, batterie, territorio, cronaca | due account che si fanno la guerra in tutti i modi previsti — **fatta il 19/09/2026** |
 | **F7** | Rifinitura: obiettivi, quattro classifiche, albo d'oro, statistiche, admin completo, PWA, suoni, `balance:report` | un giro di bilanciamento con il rapporto che conferma il tetto di reddito |
 
 ---
@@ -735,7 +735,58 @@ gioco.
 3. ~~Il tetto di reddito orario del mondo.~~ **Calibrato il 19/09/2026: 24 milioni di
    lire l'ora**, derivato al §2.6 dal primo milione pulito in quattro-cinque ore attive.
    Da riverificare con giocatori veri nella prima settimana di F2.
-4. **Protezione dei nuovi arrivati**: la decisione 4 dice PvP pieno. Resta da decidere se
-   il giocatore sotto una certa soglia di patrimonio sia semplicemente **senza bottino**
-   (attaccarlo non rende nulla e costa calore pieno) o se debba avere anche un periodo di
-   immunità esplicita. La prima strada è più elegante e non contraddice la decisione.
+4. ~~Protezione dei nuovi arrivati.~~ **Decisa il 19/09/2026 con F6: la soglia di
+   bottino, senza immunità.** Sotto `pvp.bottino_minimo` (mezzo milione fra contante e
+   merce addosso) **non si prende niente a nessuno**: la vittima non perde una lira e
+   l'aggressore incassa zero, mentre calore e profilo criminale li paga pieni. Cacciare i
+   principianti resta possibile — la decisione 4 dice PvP pieno e non la si contraddice —
+   ed è semplicemente l'attività peggio pagata del gioco. La prova end-to-end la misura
+   come invariante (`tests/e2e_rivalita.sh`), non come intenzione.
+
+---
+
+## 11. F6 — il giro degli altri
+
+Fin qui il multigiocatore c'era già, ma solo come **conseguenza**: il mercato è condiviso,
+quindi chi compra prima alza il prezzo a chi viene dopo e chi vende troppo lo fa crollare
+a tutti. È l'attrito che non costa una riga di codice, ed è il livello principale (§6.2).
+F6 aggiunge quello che va scritto: colpire una persona invece di un prezzo.
+
+**Lo scontro** (`Sim/Scontro`, modulo puro). Scheletro di dopewars: due punteggi, due
+estrazioni contrapposte, il danno che somma un tiro per arma. Le armi sono **merce
+addosso**, non una statistica — si comprano al listino come tutto il resto, e chi le porta
+le perde se lo pestano. Le guardie dell'organico sparano e incassano. Sei round al
+massimo: è una rissa per strada, non un duello. Misurato: tre armi contro un disarmato
+colpiscono il 70 % delle volte per ~64 di danno; contro due guardie e sangue freddo 60
+scendono al 49 % per 38.
+
+Quello che cambia rispetto all'originale è **il bottino**. In dopewars chi vinceva si
+prendeva tutto: contante, banca, merce, armi. In una partita da venti minuti va benissimo;
+su un personaggio costruito in tre mesi è la fine del gioco per la vittima e, dopo un po',
+per il server. Qui si prende **solo ciò che la vittima aveva addosso** — il pulito è
+intestato, i canali e gli immobili pure — e sotto la soglia non c'è niente da prendere
+(§10.4). Il prezzo lo paga il §4.4: ogni aggressione vale un punto di **profilo criminale**,
+e quello non scende col tempo.
+
+**La soffiata** (2 milioni): una telefonata che porta 22 prove al fascicolo di un altro.
+Una volta su quattro la registrano, e le prove se le prende chi ha chiamato.
+
+**La spia**: un proprio uomo mandato dentro casa d'altri (3 milioni, e l'uomo lo si perde
+comunque). Finché non la scoprono si vede quello che vede lei — contante, pulito, debito,
+calore, uomini, carico. Quando la scoprono, quattro esiti come nell'originale: uccisa,
+scappata, voltafaccia, o semplicemente finita.
+
+**La rapina al carico**: le corse dei corrieri altrui che passano per la piazza si possono
+fermare. Non manda nessuno all'ospedale — è il modo di farsi male a vicenda che lascia
+tutti in piedi — ma scotta lo stesso.
+
+**Le batterie e il territorio.** Fondare costa 10 milioni **puliti**; la cassa comune è
+contante e ne preleva solo il capo. Il territorio **non si conquista premendo un
+pulsante**: ogni lira movimentata in una piazza lascia punti di presenza alla batteria di
+chi l'ha movimentata, la presenza si dimezza ogni 72 ore, e sopra i 150 punti la piazza
+passa. Chi comanda incassa il 4 % su quello che ci trattano gli estranei. È la stessa
+logica del mercato applicata alle persone: niente dichiarazioni, solo conseguenze di quello
+che si è fatto davvero — e un territorio va **tenuto**, non preso una volta.
+
+**La cronaca**: il notiziario del mondo, uguale per tutti. Senza, metà di quello che
+succede sarebbe invisibile, e un mondo condiviso che non si vede tanto vale non averlo.

@@ -27,7 +27,10 @@ use App\Game\Contabilita;
 use App\Game\Legge;
 use App\Game\Listino;
 use App\Game\Logistica;
+use App\Game\Batteria;
+use App\Game\Cronaca;
 use App\Game\Organico;
+use App\Game\Rivalita;
 use App\Game\Personaggio;
 
 $avvio = microtime(true);
@@ -81,6 +84,11 @@ try {
     // bene. I corrieri arrivano — o non arrivano.
     $lavori['stipendi'] = $fase('stipendi', static fn() => Organico::pagaStipendi(), ['pagati' => 0, 'non_pagati' => 0]);
     $lavori['corse']    = $fase('corse', static fn() => Organico::chiudiCorse(), ['arrivate' => 0, 'perse' => 0]);
+    // Gli altri: chi esce dall'ospedale, le spie che vengono scoperte, e il
+    // territorio, che decade se non lo si tiene.
+    $lavori['dimessi']   = $fase('dimessi', static fn() => Rivalita::dimetti(), 0);
+    $lavori['spie']      = $fase('spie', static fn() => Rivalita::spieScoperte(), ['scoperte' => 0]);
+    $lavori['territori'] = $fase('territori', static fn() => Batteria::aggiornaTerritori(), ['cambi' => 0]);
     $lavori['posta'] = $fase('posta', static fn() => Posta::smista(), ['tentati' => 0, 'inviati' => 0, 'rinunciati' => 0]);
     $lavori['freni'] = $fase('freni', static fn() => RateLimiter::gc(), 0);
 
@@ -97,6 +105,7 @@ try {
             "DELETE FROM users WHERE status = 'pending'
                AND created_at < DATE_SUB(NOW(), INTERVAL 14 DAY) LIMIT 100"
         )->rowCount(), 0);
+        $lavori['cronaca_potata'] = $fase('cronaca_potata', static fn() => Cronaca::pota(30), 0);
         $lavori['battiti_potati'] = $fase('battiti_potati', static fn() => Database::run(
             'DELETE FROM tick_runs WHERE started_at < DATE_SUB(NOW(), INTERVAL 7 DAY) LIMIT 5000'
         )->rowCount(), 0);

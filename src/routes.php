@@ -6,6 +6,7 @@ use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\HomeController;
 use App\Controllers\ProfiloController;
+use App\Controllers\RivaliController;
 use App\Controllers\AffariController;
 use App\Controllers\LeggeController;
 use App\Controllers\MercatoController;
@@ -60,6 +61,19 @@ $router->post('/organico/assumi', [OrganicoController::class, 'assumi'], ['activ
 $router->post('/organico/licenzia', [OrganicoController::class, 'licenzia'], ['active', 'throttle']);
 $router->post('/organico/piazza', [OrganicoController::class, 'piazza'], ['active', 'throttle']);
 $router->post('/organico/manda', [OrganicoController::class, 'manda'], ['active', 'throttle']);
+
+// --- Il giro degli altri -----------------------------------------------------
+$router->get('/altri', [RivaliController::class, 'altri'], ['active']);
+$router->post('/altri/attacca', [RivaliController::class, 'attacca'], ['active', 'throttle']);
+$router->post('/altri/soffiata', [RivaliController::class, 'soffiata'], ['active', 'throttle']);
+$router->post('/altri/infiltra', [RivaliController::class, 'infiltra'], ['active', 'throttle']);
+$router->post('/altri/rapina', [RivaliController::class, 'rapina'], ['active', 'throttle']);
+$router->get('/cronaca', [RivaliController::class, 'cronaca']);
+$router->get('/batteria', [RivaliController::class, 'batteria'], ['active']);
+$router->post('/batteria/fonda', [RivaliController::class, 'fonda'], ['active', 'throttle']);
+$router->post('/batteria/entra', [RivaliController::class, 'entra'], ['active', 'throttle']);
+$router->post('/batteria/esci', [RivaliController::class, 'esci'], ['active', 'throttle']);
+$router->post('/batteria/cassa', [RivaliController::class, 'cassa'], ['active', 'throttle']);
 
 // --- La legge ----------------------------------------------------------------
 $router->get('/fascicolo', [LeggeController::class, 'fascicolo'], ['active']);

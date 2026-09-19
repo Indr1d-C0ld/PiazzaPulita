@@ -9,12 +9,14 @@ use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Game\Batteria;
 use App\Game\Contabilita;
 use App\Game\Legge;
 use App\Game\Listino;
 use App\Game\Logistica;
 use App\Game\Mondo;
 use App\Game\Personaggio;
+use App\Game\Rivalita;
 use App\Sim\Geo;
 
 final class MondoController
@@ -41,6 +43,10 @@ final class MondoController
         if (Legge::inCarcere($p)) {
             return redirect('/fascicolo');
         }
+        // Dall'ospedale nemmeno, e la pagina che lo spiega è quella degli altri.
+        if (Rivalita::inOspedale($p)) {
+            return redirect('/altri');
+        }
 
         $stato = Personaggio::stato($p);
         $qui   = (int) $p['piazza_id'];
@@ -57,6 +63,7 @@ final class MondoController
             'stato'   => $stato,
             'vicine'  => $stato['in_viaggio'] ? [] : $this->vicine($qui),
             'altri'   => $stato['in_viaggio'] ? [] : Personaggio::altriQui($qui, (int) $p['id']),
+            'padrone' => $stato['in_viaggio'] ? null : Batteria::padrone($qui),
             'listino' => $stato['in_viaggio'] ? [] : Listino::perPiazza($qui, $p),
             'carico'  => $carico,
             'ingombro'=> $ingombro,

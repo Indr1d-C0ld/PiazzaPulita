@@ -164,6 +164,10 @@ final class Personaggio
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Da qui non si va da nessuna parte.'];
             }
+            if (Rivalita::inOspedale($p)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'error' => 'Prima ti rimettono in piedi, poi si parte.'];
+            }
 
             $daPiazzaId = (int) $p['piazza_id'];
             if ($daPiazzaId === $aPiazzaId) {

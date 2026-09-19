@@ -27,6 +27,8 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
         <span class="chi"><?= e($u['username'] ?? '') ?></span>
         <a href="<?= e(url('/strada')) ?>">La strada</a>
         <a href="<?= e(url('/mappa')) ?>">Mappa</a>
+        <a href="<?= e(url('/altri')) ?>">Altri</a>
+        <a href="<?= e(url('/batteria')) ?>">Batteria</a>
         <a href="<?= e(url('/affari')) ?>">Affari</a>
         <a href="<?= e(url('/personaggio')) ?>">Tu</a>
         <a href="<?= e(url('/fascicolo')) ?>">Fascicolo</a>
@@ -63,7 +65,7 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
 <footer>
   <div class="colophon">
     <span>Piazza Pulita — gioco di finzione. Progetto personale, nessun fine commerciale.</span>
-    <span><a href="<?= e(url('/statistiche')) ?>">Statistiche</a> · <a href="<?= e(url('/regole')) ?>">Come funziona</a></span>
+    <span><a href="<?= e(url('/cronaca')) ?>">Cronaca</a> · <a href="<?= e(url('/statistiche')) ?>">Statistiche</a> · <a href="<?= e(url('/regole')) ?>">Come funziona</a></span>
     <span>Ora di Roma: <?= e(fmt_dt(time())) ?></span>
   </div>
 </footer>

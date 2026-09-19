@@ -26,6 +26,7 @@ use App\Sim\Clock;
 use App\Sim\Geo;
 use App\Sim\Calore;
 use App\Sim\Crescita;
+use App\Sim\Scontro;
 use App\Sim\Denaro;
 use App\Sim\Mercato;
 use App\Sim\Prezzi;
@@ -356,6 +357,61 @@ prova('gli attributi si dicono a parole', 'da maestro', Crescita::aParole(95));
 prova('e la reputazione pure',            'non ti conosce nessuno', Crescita::rispettoAParole(3));
 prova('anche il timore',                  'basta il nome', Crescita::timoreAParole(95));
 
+echo "\nScontro — colpire una persona invece di un prezzo\n";
+$att3 = Scontro::attacco(80, 3, 25, 0.0);
+$att0 = Scontro::attacco(80, 0, 25, 0.0);
+prova('tre armi valgono 75 punti', 155.0, $att3);
+prova('a mani nude resta la base',  80.0, $att0);
+prova('le guardie sparano anche loro', 140.0, Scontro::attacco(80, 0, 25, 2.0));
+prova('nessun punteggio sotto dieci',  10.0, Scontro::attacco(0, 0, 0, 0.0));
+prova('la difesa cresce con le guardie', 140.0, Scontro::difesa(100, 2.0, 20, 0.0));
+prova('e col sangue freddo',             150.0, Scontro::difesa(100, 0.0, 20, 100.0));
+
+// Le probabilità si misurano, non si dichiarano: diecimila scambi con un
+// generatore deterministico danno lo stesso numero a ogni esecuzione.
+$rng = new Rng(20260919, 'scontro');
+$colpi = 0; $danno = 0;
+for ($i = 0; $i < 10000; $i++) {
+    $c = Scontro::colpo($att3, Scontro::difesa(100, 0.0, 20, 0.0), 3, 0.0, $rng);
+    if ($c['colpito']) { $colpi++; $danno += $c['danno']; }
+}
+$quota = $colpi / 10000;
+$medio = $danno / max(1, $colpi);
+prova('tre armi contro uno disarmato: colpisce ~70 %', true, $quota > 0.65 && $quota < 0.75);
+prova('e quando colpisce fa ~60 di danno',             true, $medio > 55 && $medio < 72);
+
+$rng2 = new Rng(20260919, 'scontro2');
+$colpi2 = 0; $danno2 = 0;
+for ($i = 0; $i < 10000; $i++) {
+    $c = Scontro::colpo($att3, Scontro::difesa(100, 2.0, 20, 60.0), 3, 2.0, $rng2);
+    if ($c['colpito']) { $colpi2++; $danno2 += $c['danno']; }
+}
+prova('due guardie e sangue freddo dimezzano il colpo', true, $colpi2 / 10000 < $quota - 0.15);
+prova('e le guardie incassano per te',                  true, $danno2 / max(1, $colpi2) < $medio * 0.75);
+
+$rngNude = new Rng(20260919, 'nude');
+$dannoNudo = 0; $colpiNudi = 0;
+for ($i = 0; $i < 4000; $i++) {
+    $c = Scontro::colpo($att0, Scontro::difesa(100, 0.0, 20, 0.0), 0, 0.0, $rngNude);
+    if ($c['colpito']) { $colpiNudi++; $dannoNudo += $c['danno']; }
+}
+prova('a mani nude si fa male poco', true, $dannoNudo / max(1, $colpiNudi) < 10);
+prova('ma si fa male',               true, $colpiNudi > 1000);
+
+// Chi attacca fa più fatica a svignarsela: è il costo dell'iniziativa.
+$rngF = new Rng(7, 'fuga');
+$scappa = 0; $scappaAtt = 0;
+for ($i = 0; $i < 5000; $i++) { if (Scontro::fuga(0.60, false, $rngF)) { $scappa++; } }
+for ($i = 0; $i < 5000; $i++) { if (Scontro::fuga(0.60, true, $rngF)) { $scappaAtt++; } }
+prova('chi si difende scappa sei volte su dieci', true, abs($scappa / 5000 - 0.60) < 0.03);
+prova('chi ha attaccato tre su dieci',            true, abs($scappaAtt / 5000 - 0.30) < 0.03);
+
+// La soglia del bottino: sotto, non si prende niente a nessuno.
+prova('sotto soglia non c\'è bottino',   0, Scontro::bottino(200_000, 100_000, 500_000));
+prova('sopra soglia si prende tutto', 900_000, Scontro::bottino(400_000, 500_000, 500_000));
+prova('la soglia è compresa',         500_000, Scontro::bottino(500_000, 0, 500_000));
+prova('chi non ha niente non perde niente', 0, Scontro::bottino(0, 0, 500_000));
+
 echo "\nRendering di tutte le viste\n";
 
 $utente = [
@@ -526,6 +582,53 @@ $viste = [
         'utenti' => ['totale' => 2, 'attivi' => 2, 'attesa' => 0, 'sospesi' => 0],
         'trasporto' => 'log',
     ],
+    'gioco/altri'       => [
+        'title' => 'Chi c\'è', 'p' => $personaggioFinto + ['batteria_id' => null],
+        'piazza' => $piazze[1], 'padrone' => null,
+        'altri' => [['id' => 9, 'username' => 'Tizio', 'salute' => 100, 'ospedale_fino_a' => null,
+                     'carcere_fino_a' => null, 'profilo' => 2, 'batteria' => null, 'spiato' => 0]],
+        'spiati' => [], 'corse' => [], 'uomini' => [['id' => 3, 'nome' => 'Gino', 'stato' => 'libero']],
+        'inOspedale' => false, 'mancano' => 0,
+        'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
+    ],
+    'gioco/altri (all\'ospedale, con una spia dentro)' => [
+        '__vista' => 'gioco/altri', 'title' => 'Chi c\'è',
+        'p' => $personaggioFinto + ['batteria_id' => 1],
+        'piazza' => $piazze[1],
+        'padrone' => ['id' => 2, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'dal' => '2026-09-18 10:00:00'],
+        'altri' => [['id' => 9, 'username' => 'Tizio', 'salute' => 40, 'ospedale_fino_a' => null,
+                     'carcere_fino_a' => null, 'profilo' => 5, 'batteria' => 'TRP', 'spiato' => 1]],
+        'spiati' => [9 => ['spia' => 'Gino', 'nome' => 'Tizio', 'dove' => $piazze[1],
+                           'sporco' => 3_000_000, 'pulito' => 1_000_000, 'debito' => 0,
+                           'calore' => 42.0, 'uomini' => 2,
+                           'carico' => [['bene' => $beneFinto, 'quantita' => 12]]]],
+        'corse' => [['id' => 1, 'quantita' => 40, 'bene' => 'Fumo', 'padrone' => 'Caio',
+                     'da_piazza' => 'Lambrate', 'a_piazza' => 'Bovisa', 'arrivo_at' => '2026-09-19 18:00:00']],
+        'uomini' => [], 'inOspedale' => true, 'mancano' => 7200,
+        'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
+    ],
+    'gioco/cronaca'     => ['title' => 'Cronaca', 'righe' => [
+        ['id' => 2, 'genere' => 'scontro', 'testo' => 'Tizio ha alleggerito Caio.',
+         'piazza_id' => 1, 'rilievo' => 4, 'fatto_at' => '2026-09-19 12:00:00',
+         'piazza' => 'Lambrate', 'citta' => 'Milano'],
+        ['id' => 1, 'genere' => 'territorio', 'testo' => 'Bovisa è passata ai Tre Ponti.',
+         'piazza_id' => null, 'rilievo' => 2, 'fatto_at' => '2026-09-19 09:00:00',
+         'piazza' => null, 'citta' => null],
+    ]],
+    'gioco/cronaca (vuota)' => ['__vista' => 'gioco/cronaca', 'title' => 'Cronaca', 'righe' => []],
+    'gioco/batteria (senza)' => ['__vista' => 'gioco/batteria', 'title' => 'Batterie',
+        'p' => $personaggioFinto + ['pulito' => 12_000_000], 'mia' => null, 'membri' => [],
+        'territori' => [], 'sonoCapo' => false, 'fondazione' => 10_000_000, 'pizzo' => 0.04,
+        'elenco' => [['id' => 1, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'capo' => 'Tizio',
+                      'motto' => 'Poche parole', 'membri' => 3, 'piazze' => 2, 'cassa' => 0,
+                      'capo_id' => 9, 'creata_at' => '2026-09-01 10:00:00']]],
+    'gioco/batteria (capo)' => ['__vista' => 'gioco/batteria', 'title' => 'I Tre Ponti',
+        'p' => $personaggioFinto + ['pulito' => 1_000_000, 'batteria_id' => 1],
+        'mia' => ['id' => 1, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'capo_id' => 1,
+                  'cassa' => 4_500_000, 'motto' => 'Poche parole', 'creata_at' => '2026-09-01 10:00:00'],
+        'membri' => [['id' => 1, 'username' => 'Mario Rossi', 'pulito' => 0, 'rispetto' => 20.0, 'timore' => 5.0]],
+        'territori' => [['piazza' => 'Lambrate', 'citta' => 'Milano', 'presenza' => 412.5, 'dal' => '2026-09-18 10:00:00']],
+        'sonoCapo' => true, 'fondazione' => 10_000_000, 'pizzo' => 0.04, 'elenco' => []],
     'admin/utenti'      => ['title' => 'Utenti', 'righe' => [$utente], 'q' => ''],
     'admin/utente'      => ['title' => 'Utente', 'u' => $utente, 'registro' => [['action' => 'auth.login', 'target_type' => 'user', 'target_id' => 1, 'created_at' => '2026-09-19 05:00:00']]],
     'admin/posta'       => [

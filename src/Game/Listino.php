@@ -296,6 +296,10 @@ final class Listino
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Da dentro non si compra e non si vende.'];
             }
+            if (Rivalita::inOspedale($p)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'error' => 'Con due costole rotte non si tratta.'];
+            }
             if ((int) $p['piazza_id'] !== $piazzaId) {
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Non sei in questa piazza.'];
@@ -368,6 +372,12 @@ final class Listino
         // Si impara trattando. Il peso è logaritmico sul valore: un colpo
         // grosso insegna più di uno piccolo, ma non in proporzione — se no
         // basterebbe una vendita sola per diventare maestri.
+        // Il territorio si tiene lavorandoci: ogni operazione lascia presenza
+        // alla batteria di chi l'ha fatta, e paga il pizzo a chi comanda qui.
+        // Fuori dalla transazione apposta: se il pizzo fallisce non deve
+        // cancellare una compravendita già conclusa e già contabilizzata.
+        Batteria::lavorato($personaggioId, $piazzaId, (int) $esito['totale']);
+
         $peso = Crescita::pesoValore((int) $esito['totale']);
         Organico::cresci($personaggioId, 'trattativa', $peso);
         // L'organizzazione cresce MANDANDO AVANTI un giro, non assumendo:

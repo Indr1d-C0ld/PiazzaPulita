@@ -31,6 +31,12 @@ Database::run("DELETE FROM rate_limits WHERE rkey LIKE 'reg:%' OR rkey LIKE 'log
 // vero — quindi qui si tolgono a mano.
 Database::run('DELETE t FROM transazioni t LEFT JOIN personaggi p ON p.id = t.personaggio_id WHERE p.id IS NULL');
 
+// Le batterie non hanno chiave esterna sul capo apposta — una batteria deve
+// poter sopravvivere a chi l'ha fondata — quindi quelle delle prove restano
+// in piedi da sole e vanno tolte a mano, con tutto quello che ci pende.
+Database::run('DELETE b FROM batterie b LEFT JOIN personaggi p ON p.id = b.capo_id WHERE p.id IS NULL');
+Database::run("DELETE FROM cronaca WHERE testo LIKE '%prova %'");
+
 // La posta delle prove: lasciata in coda conterebbe verso il tetto giornaliero
 // del provider, che e' condiviso con gli altri progetti sullo stesso account.
 Database::run("DELETE FROM mail_queue WHERE destinatario LIKE '%@esempio.invalid'");

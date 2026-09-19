@@ -25,7 +25,6 @@ BASE_URL="${BASE_URL:-https://127.0.0.1/piazzapulita}"
 HOST_HDR="${HOST_HDR:-localhost}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CFG="/data/piazzapulita-config/config.php"
-LOG="${ROOT}/storage/logs/app.log"
 JAR="$(mktemp)"
 # Nome con spazio e password esattamente al minimo consentito: la prova passa
 # per gli stessi casi limite che useranno i giocatori.
@@ -104,7 +103,6 @@ trap 'ripristina; rm -f "${JAR}"' EXIT
 # che non e' mai stato scritto.
 sleep 3
 
-LOG_PRIMA=$(wc -l < "${LOG}" 2>/dev/null || echo 0)
 
 # 0. Sonda di servizio
 CODE=$(c -o /dev/null -w '%{http_code}' "${BASE_URL}/health")
@@ -150,13 +148,18 @@ grep -q "Bentornato" <<< "${PAGINA}" \
   && verifica "strada irraggiungibile senza conferma" "si" "si" \
   || verifica "strada irraggiungibile senza conferma" "si" "no"
 
-# 5. Gettone di verifica dal diario.
+# 5. Gettone di verifica dalla coda di posta.
 # La posta non parte al momento dell'iscrizione: entra in coda e la spedisce il
 # battito. Qui la coda la si smista a mano, altrimenti la prova aspetterebbe il
 # cron del minuto e passerebbe o no secondo il momento in cui la si lancia.
 php "${ROOT}/bin/console.php" mail:smista >/dev/null 2>&1
 
-LINK=$(tail -n +"$((LOG_PRIMA + 1))" "${LOG}" | grep -o 'verifica?token=[0-9a-f]\{64\}' | head -1)
+# Il collegamento si legge dalla RIGA IN CODA, non dal diario: il diario lo
+# scrive chi ha spedito davvero, e se ha fatto in tempo il cron del sito la riga
+# finisce nel diario dell'installazione, non in quello di questa cartella. Si
+# fallivano cinque verifiche per una corsa fra due processi, non per un baco.
+LINK=$(dbq "SELECT corpo FROM mail_queue WHERE destinatario='${USER_MAIL}' AND genere='verifica'
+            ORDER BY id DESC LIMIT 1" | grep -o 'verifica?token=[0-9a-f]\{64\}' | head -1)
 verifica "collegamento di verifica generato" "si" "$([[ -n "${LINK}" ]] && echo si || echo no)"
 
 PAGINA=$(c "${BASE_URL}/${LINK}")

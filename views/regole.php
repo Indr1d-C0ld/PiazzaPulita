@@ -36,19 +36,30 @@
      chi fa crollare il prezzo dove tu devi vendere, chi ti brucia una piazza di calore.
      Ma si può anche colpire direttamente — e chi lo fa paga il conto più caro del
      gioco: il profilo criminale non scende con il tempo, e la legge non dimentica.</p>
+  <p>Chi vince si prende <strong>solo quello che l'altro aveva addosso</strong>: contanti
+     e merce. Il denaro pulito è intestato, i canali e gli immobili pure, e nessuno può
+     portarteli via. E sotto mezzo milione <strong>non c'è niente da prendere</strong>:
+     pestare un principiante è possibile, non rende una lira, e il calore lo paghi
+     lo stesso. Restano la soffiata anonima, la spia da infiltrare in casa d'altri e il
+     carico da fermare per strada.</p>
+  <p>In gruppo si fanno le <strong>batterie</strong>, che hanno una cassa comune e possono
+     tenere una piazza. Il territorio non si conquista dichiarandolo: si tiene
+     <em>lavorandoci</em>, e se lo si lascia decade in tre giorni. Chi comanda una piazza
+     incassa una quota su quello che ci trattano gli estranei.</p>
 
   <h2>A che punto è la costruzione</h2>
-  <p>Il gioco si costruisce a fasi, e questa è la prima. Oggi funzionano l'iscrizione
-     con conferma dell'indirizzo, il profilo e l'amministrazione del mondo. Il mercato —
-     che è il gioco — arriva alla fase due.</p>
+  <p>Il gioco si costruisce a fasi. Oggi c'è tutto il giro: il mondo, il mercato
+     condiviso, il denaro sporco e pulito, la legge, il personaggio con i suoi uomini e
+     la rivalità fra giocatori. Manca la rifinitura — obiettivi, classifiche, albo
+     d'oro — e il bilanciamento, che si fa con i giocatori veri e non alla scrivania.</p>
   <ul class="fasi">
     <li class="fatta"><span class="sigla">F0</span><span class="voce">Fondamenta: accesso, profilo, amministrazione</span><span class="esito">fatta</span></li>
-    <li><span class="sigla">F1</span><span class="voce">Il mondo: città, piazze, spostamenti in tempo reale</span><span class="esito">da fare</span></li>
-    <li><span class="sigla">F2</span><span class="voce">Il mercato: giacenze, prezzi, ordini con impatto</span><span class="esito">da fare</span></li>
-    <li><span class="sigla">F3</span><span class="voce">Denaro e logistica: depositi, mezzi, riciclaggio</span><span class="esito">da fare</span></li>
-    <li><span class="sigla">F4</span><span class="voce">La legge: calore, controlli, fascicoli</span><span class="esito">da fare</span></li>
-    <li><span class="sigla">F5</span><span class="voce">Il personaggio: attributi, reputazione, organico</span><span class="esito">da fare</span></li>
-    <li><span class="sigla">F6</span><span class="voce">Il giro degli altri: rivalità, batterie, territorio</span><span class="esito">da fare</span></li>
+    <li class="fatta"><span class="sigla">F1</span><span class="voce">Il mondo: città, piazze, spostamenti in tempo reale</span><span class="esito">fatta</span></li>
+    <li class="fatta"><span class="sigla">F2</span><span class="voce">Il mercato: giacenze, prezzi, ordini con impatto</span><span class="esito">fatta</span></li>
+    <li class="fatta"><span class="sigla">F3</span><span class="voce">Denaro e logistica: depositi, mezzi, riciclaggio</span><span class="esito">fatta</span></li>
+    <li class="fatta"><span class="sigla">F4</span><span class="voce">La legge: calore, controlli, fascicoli</span><span class="esito">fatta</span></li>
+    <li class="fatta"><span class="sigla">F5</span><span class="voce">Il personaggio: attributi, reputazione, organico</span><span class="esito">fatta</span></li>
+    <li class="fatta"><span class="sigla">F6</span><span class="voce">Il giro degli altri: rivalità, batterie, territorio</span><span class="esito">fatta</span></li>
     <li><span class="sigla">F7</span><span class="voce">Rifinitura: obiettivi, classifiche, bilanciamento</span><span class="esito">da fare</span></li>
   </ul>
 

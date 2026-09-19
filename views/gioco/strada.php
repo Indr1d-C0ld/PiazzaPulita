@@ -206,11 +206,20 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
     <?php endif; ?>
   </div>
 
-  <?php if ($altri !== []): ?>
+  <?php $padrone = $padrone ?? null; ?>
+  <?php if ($altri !== [] || $padrone !== null): ?>
     <div class="foglio">
       <span class="occhiello">Chi c'è</span>
-      <p class="sommario minuto">Fermi in questa piazza adesso. Da F2 sono concorrenti sul prezzo.</p>
-      <p><?php foreach ($altri as $a): ?><a href="<?= e(url('/profilo/' . $a['id'])) ?>"><?= e($a['username']) ?></a>&nbsp; <?php endforeach; ?></p>
+      <?php if ($padrone !== null): ?>
+        <p class="sommario">La piazza è di <strong><?= e($padrone['nome']) ?></strong>
+           (<?= e($padrone['sigla']) ?>): su quello che ci tratti, una quota va a loro.</p>
+      <?php endif; ?>
+      <?php if ($altri !== []): ?>
+        <p class="sommario minuto">Fermi in questa piazza adesso. Sono concorrenti sul prezzo,
+           e non solo su quello.</p>
+        <p><?php foreach ($altri as $a): ?><a href="<?= e(url('/profilo/' . $a['id'])) ?>"><?= e($a['username']) ?></a>&nbsp; <?php endforeach; ?></p>
+        <p><a class="bottone bottone--fantasma bottone--minuto" href="<?= e(url('/altri')) ?>">Il giro degli altri</a></p>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
 

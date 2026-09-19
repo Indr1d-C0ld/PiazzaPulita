@@ -56,7 +56,19 @@ riciclatori, guardie, basisti e **corrieri**, che portano la roba da soli mentre
 altrove. Chi non viene pagato smette di volerti bene, e il giorno che ti prendono parla:
 è il **pentito**. E i **fornitori**, l'unica cosa del gioco che non si compra col denaro.
 
-Prossima: **F6 — il giro degli altri** (rivalità, soffiate, spie, batterie, territorio).
+**F6 — Il giro degli altri: fatta.** Le armi sono merce addosso, non una statistica, e
+chi le porta le perde se lo pestano. Il bottino è **solo quello che la vittima aveva
+addosso** — mai il pulito, mai i canali, mai gli immobili — e sotto mezzo milione non si
+prende niente a nessuno: aggredire un principiante resta possibile ed è l'attività peggio
+pagata del gioco. Ogni aggressione vale un punto di pubblico nemico, e quello non scende.
+Più le soffiate (una su quattro si ritorce), le spie infiltrate in casa d'altri, le rapine
+ai carichi dei corrieri, le **batterie** con la cassa comune, e il **territorio**, che non
+si conquista premendo un pulsante: si tiene lavorandoci, decade in tre giorni, e chi
+comanda incassa il 4 % su quello che ci trattano gli altri. E la **cronaca**, il notiziario
+del mondo, uguale per tutti.
+
+Prossima: **F7 — rifinitura** (obiettivi, classifiche, albo d'oro, statistiche, admin
+completo, PWA, bilanciamento).
 
 ## Installazione
 
@@ -90,13 +102,14 @@ perché `logger()` ripiega sul syslog e non si lamenta.
 ## Prove
 
 ```bash
-php tests/test_unita.php    # 187 verifiche: formato, geografia, viaggi, mercato, denaro, viste
+php tests/test_unita.php    # 211 verifiche: formato, geografia, viaggi, mercato, denaro, scontro, viste
 bash tests/e2e_auth.sh      # iscrizione, conferma, accesso, profilo — attraverso Apache
 bash tests/e2e_mondo.sh     # nascita, viaggi, arrivi, rifiuti — attraverso Apache
 bash tests/e2e_mercato.sh   # compravendita, impatto, fotografia del profilo
 bash tests/e2e_affari.sh    # riciclaggio, usuraio, mezzi, depositi — il ciclo intero
 bash tests/e2e_legge.sh     # calore, fascicolo, blitz, carcere, difesa
 bash tests/e2e_organico.sh  # attributi, uomini, corrieri, pentiti, fornitori
+bash tests/e2e_rivalita.sh  # due giocatori veri: botte, bottino, spie, batterie, pizzo
 
 php bin/console.php balance:report        # l'invariante del tetto, come prova
 php bin/_simula_principiante.php 12 NA    # un principiante contro il motore vero
