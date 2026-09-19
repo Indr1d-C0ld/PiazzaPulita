@@ -25,6 +25,7 @@ $root = require __DIR__ . '/_bootstrap.php';
 use App\Core\Database;
 use App\Core\GameConfig;
 use App\Game\Listino;
+use App\Game\Logistica;
 use App\Game\Mondo;
 use App\Sim\Clock;
 use App\Sim\Mercato;
@@ -47,7 +48,10 @@ $qui = (int) $piazze[0]['id'];
 
 $capitaleIniziale = App\Core\GameConfig::int('mondo.contante_iniziale', 2_000_000);
 $contante = $capitaleIniziale;
-$capienza = 80;
+// Lo spazio addosso si chiede a chi lo decide, non si scrive qui: con il
+// numero a mano lo strumento misurava sempre un giocatore da 80 unità, e
+// provare a cambiare la capienza non spostava di una lira il risultato.
+$capienza = Logistica::CAPIENZA_BASE;
 $carico   = [];           // bene_id => [q, costo]
 // Si parte da ADESSO, non da una data scritta a mano: il mercato si proietta
 // in avanti a partire dal suo `agg_a`, e se l'orologio della simulazione sta

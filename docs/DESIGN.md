@@ -242,9 +242,10 @@ questo basta a renderle due beni distinti invece che due nomi per la stessa cosa
 
 È il numero più importante del gioco, quindi si ricava, non si sceglie a naso.
 
-**Il valore: `R = 24.000.000 di lire l'ora`.** Tanto produce il mondo intero, per tutti i
-giocatori messi insieme: 576 milioni al giorno, circa 17 miliardi al mese. Nessuno può
-estrarre di più, perché non esiste niente da cui estrarlo.
+**Il valore: `R = 16.000.000 di lire l'ora`** (ritarato il 19/09/2026; era 24 milioni —
+vedi §2.6.1). Tanto produce il mondo intero, per tutti i giocatori messi insieme: 384
+milioni al giorno, circa 11,5 miliardi al mese. Nessuno può estrarre di più, perché non
+esiste niente da cui estrarlo.
 
 #### Da dove viene
 
@@ -380,7 +381,7 @@ Chiavi in `game_config`, modificabili a caldo dal pannello:
 
 | Chiave | Valore | Significato |
 |---|---:|---|
-| `mondo.reddito_orario` | `24000000` | il tetto, in lire l'ora |
+| `mondo.reddito_orario` | `16000000` | il tetto, in lire l'ora |
 | `mondo.espansione_max` | `0.30` | quanto la comunità può allargare la torta |
 | `mercato.margine_viaggio` | `0.30` | il ritmo del 1984, da cui discendono gli spread |
 | `mercato.banda_min` / `banda_max` | `3` / `30` | la banda di assorbimento per piazza |
@@ -392,6 +393,49 @@ solo simulatore non contende niente a nessuno, e tutto il §0.1a parla di quello
 succede quando si è in tanti. `R` resta una riga di `game_config` proprio perché
 correggerlo dovrà costare dieci secondi.
 
+
+#### 2.6.1 La ritaratura del 19/09/2026: da 24 a 16 milioni
+
+**Perché.** Corretto il baco della prima mano del generatore pseudocasuale
+(`src/Sim/Rng.php`: un generatore seminato per una sola estrazione restituiva numeri con
+media 0,125 e mai sopra 0,25), il mercato ha cominciato a respirare come progettato — i
+carichi arrivano il 12% delle ore invece del 48%, e la giacenza a riposo sta a 1,6 volte
+l'equilibrio invece che a 4. A quel punto il principiante è risultato **molto sopra il
+bersaglio**: mediana di 841.000 lire nella prima ora sulle nove città, contro le 250.000
+di progetto. Il numero vecchio (160-300 k) era falsato da due bachi contemporaneamente:
+quello del generatore, e lo strumento di misura che si avvelenava il mercato da solo
+scrivendo `agg_a` nel futuro.
+
+**Abbassare R da solo non funziona, ed è stato misurato.** La potatura di banda di
+`mercato:semina` toglie i nodi che scenderebbero sotto l'assorbimento minimo e
+**ridistribuisce la loro quota sui superstiti**: il mercato diventa più magro, ma i nodi
+rimasti restano grassi, e il giocatore guadagna come prima. A `R = 6.000.000` con la banda
+ferma a 3 restavano **24 nodi su 273** e il principiante guadagnava *di più* di prima. A
+`R = 16.000.000` con la banda a 3, la potatura lascia **cinque piazze senza nemmeno un
+bene** e il tetto reale scende a 12,16 milioni invece dei 16 chiesti. **La banda va
+abbassata insieme a R**: da 3 a 2 unità l'ora.
+
+**Le tre tarature misurate** (mediana della prima ora, tutte e nove le città, simulatore
+del principiante su un mondo che respira da 96 ore):
+
+| taratura | nodi | mediana | città peggiore | città sotto 100 k |
+|---|---|---|---|---|
+| `R = 24 M`, banda 3 | 273 | 841 k | 295 k | 0 |
+| **`R = 16 M`, banda 2** | **273** | **584 k** | **214 k** | **0** |
+| `R = 10 M`, banda 1 | 327 | 411 k | −1 k | 3 su 9 |
+
+**Quello che resta aperto, e che R non può risolvere.** La mediana non arriva a 250.000 e
+non ci può arrivare abbassando il tetto, perché **il reddito del principiante dipende dalla
+città molto più che da R**: nella stessa taratura Roma dà 1,55 milioni l'ora e Catania
+214.000, sette volte meno. Un taglio abbastanza profondo da portare Roma sul bersaglio
+ammazza Bari, Palermo e Bologna — a `R = 10 M` tre città su nove diventano invivibili per
+chi comincia. La leva per quello è la **composizione delle piazze** di ogni città (§1), la
+stessa cosa che in F2 aveva già costretto a dare uno sbocco a ognuna: qui serve un secondo
+giro, più fine, sul contrasto interno fra piazza-fonte e piazza-sbocco.
+
+Nota di metodo: il bersaglio delle 250.000 lire l'ora descrive **la prima ora**, quando il
+giocatore è legato al capitale (300.000 lire). Passata quella, il vincolo cambia e il
+reddito sale da solo: è la progressione, non uno sbilanciamento.
 ### 2.7 L'informazione
 
 - **Sul posto**: prezzi esatti e in tempo reale.
@@ -732,9 +776,9 @@ gioco.
 1. ~~Il nome.~~ **Deciso il 19/09/2026: *Piazza Pulita*** — la piazza di spaccio, il
    riciclaggio e il modo di dire, tutti e tre nella stessa insegna.
 2. **Quanto in là spingere il realismo dei nomi di quartiere** (§1.1).
-3. ~~Il tetto di reddito orario del mondo.~~ **Calibrato il 19/09/2026: 24 milioni di
-   lire l'ora**, derivato al §2.6 dal primo milione pulito in quattro-cinque ore attive.
-   Da riverificare con giocatori veri nella prima settimana di F2.
+3. ~~Il tetto di reddito orario del mondo.~~ **Calibrato il 19/09/2026 a 24 milioni**
+   (§2.6), **ritarato lo stesso giorno a 16 milioni** dopo la correzione del generatore
+   pseudocasuale (§2.6.1). Da riverificare con giocatori veri.
 4. ~~Protezione dei nuovi arrivati.~~ **Decisa il 19/09/2026 con F6: la soglia di
    bottino, senza immunità.** Sotto `pvp.bottino_minimo` (mezzo milione fra contante e
    merce addosso) **non si prende niente a nessuno**: la vittima non perde una lira e

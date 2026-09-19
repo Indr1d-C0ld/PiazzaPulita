@@ -236,7 +236,7 @@ foreach ([['personaggi', 'contante < 0', 'contante'], ['personaggi', 'pulito < 0
 
 // --- 3. Il tetto ---------------------------------------------------------------------------
 echo "\n3. IL TETTO TIENE\n";
-$R = GameConfig::int('mondo.reddito_orario', 24_000_000);
+$R = GameConfig::int('mondo.reddito_orario', 16_000_000);
 $sopra = 0; $max = 0; $tot = 0;
 foreach ($estrattoPerOra as $v) {
     $tot += $v; $max = max($max, $v);

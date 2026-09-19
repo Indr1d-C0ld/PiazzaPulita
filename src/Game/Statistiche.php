@@ -23,7 +23,7 @@ final class Statistiche
     /** @return array<string,mixed> */
     public static function mondo(): array
     {
-        $R = GameConfig::int('mondo.reddito_orario', 24_000_000);
+        $R = GameConfig::int('mondo.reddito_orario', 16_000_000);
 
         $t24 = self::riga(
             "SELECT COUNT(*) n,

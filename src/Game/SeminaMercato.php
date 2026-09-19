@@ -43,7 +43,7 @@ final class SeminaMercato
         /** @var array<string,mixed> $d */
         $d = require $fileSeme;
 
-        $R = (float) GameConfig::int('mondo.reddito_orario', 24_000_000);
+        $R = (float) GameConfig::int('mondo.reddito_orario', 16_000_000);
         $oreGiacenza = (float) GameConfig::int('mercato.ore_giacenza', 5);
 
         // --- beni e prezzi di riferimento -----------------------------------
@@ -242,7 +242,7 @@ final class SeminaMercato
      */
     public static function rapporto(): array
     {
-        $R = (float) GameConfig::int('mondo.reddito_orario', 24_000_000);
+        $R = (float) GameConfig::int('mondo.reddito_orario', 16_000_000);
 
         // 1. Somma teorica: deve tornare il tetto. Se non torna, le quote non
         //    sommano a 1 e qualcuno ha toccato una piazza a mano.
