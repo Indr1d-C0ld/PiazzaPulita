@@ -1,0 +1,15 @@
+# Cartella delle fotografie caricate dai giocatori.
+#
+# Il nome di ogni file è l'impronta sha256 del suo contenuto, quindi non è
+# indovinabile; questa cartella però non deve poter essere ELENCATA in nessun
+# caso, o basterebbe aprirla per vedere le fotografie di tutti. L'elenco è già
+# spento nella configurazione del sito: questo file è la rete per il giorno in
+# cui qualcuno la cambia senza pensarci.
+Options -Indexes
+
+# E si serve solo quello che ci mettiamo noi: immagini WebP. Niente altro deve
+# poter essere letto da qui, e niente deve poter essere eseguito.
+<FilesMatch "\.(php|phtml|phar|html?|js|svg)$">
+  Require all denied
+</FilesMatch>
+php_flag engine off

@@ -1,0 +1,20 @@
+# Segreti e configurazione locale. La configurazione vera sta FUORI dall'albero,
+# in /data/piazzapulita-config/config.php (o dove punta PIAZZAPULITA_CONFIG):
+# qui dentro non deve finirci mai niente di reale.
+/config/*
+!/config/config.esempio.php
+
+# Roba che nasce a runtime
+/storage/logs/*.log
+/storage/*.lock
+/assets/img/avatar/*.webp
+
+# Le fonti originali del 1984-2022: pesano, non sono nostre, e alcune sono
+# software proprietario. Si riscaricano con le istruzioni in
+# docs/GIOCO_ORIGINALE.md §8.
+/fonti/
+
+# Sistema
+.DS_Store
+*.swp
+*~

@@ -1,0 +1,351 @@
+/* Piazza Pulita — foglio di stile.
+ *
+ * L'idea grafica e' la carta stampata italiana degli anni ottanta: il quotidiano
+ * aperto sulle pagine dei listini. Non e' nostalgia fine a se stessa — questo e'
+ * un gioco fatto di tabelle di numeri, e la carta con l'inchiostro e' il modo in
+ * cui i numeri si leggono meglio da sempre.
+ *
+ * Due luci:
+ *   (default)             carta, luce di giorno
+ *   [data-luce="notte"]   asfalto, per chi gioca al buio
+ * Senza scelta esplicita si segue il sistema (prefers-color-scheme).
+ *
+ * Le variabili di colore sono definite TUTTE su :root nella versione chiara;
+ * le altre due sezioni ridefiniscono soltanto quelle che cambiano. Un colore
+ * che esiste solo dentro una media query e' un colore che prima o poi manca.
+ */
+
+:root {
+  --carta:     #e9e4d8;
+  --carta-2:   #f2eee4;
+  --carta-3:   #ded7c7;
+  --carta-4:   #cdc4b0;
+  --inchiostro:  #1c1a16;
+  --inchiostro-2:#4a463d;
+  --inchiostro-3:#7b7568;
+  --rosso:     #a5281d;
+  --rosso-2:   #7d1c14;
+  --verde:     #2f6b46;
+  --ambra:     #8a6320;
+  --blu:       #21456b;
+  --riga:      #b9b0a0;
+  --riga-2:    #8e8779;
+  --accento:   var(--rosso);
+  --ombra:     0 1px 2px rgba(28,26,22,.12);
+  --raggio:    2px;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans:  "Helvetica Neue", Helvetica, "Liberation Sans", Arial, system-ui, sans-serif;
+  --mono:  ui-monospace, "DejaVu Sans Mono", "Liberation Mono", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-luce="carta"]) {
+    --carta:     #15130f;
+    --carta-2:   #1d1a15;
+    --carta-3:   #26221b;
+    --carta-4:   #332d24;
+    --inchiostro:  #ddd5c5;
+    --inchiostro-2:#a49b8a;
+    --inchiostro-3:#77705f;
+    --rosso:     #d4594a;
+    --rosso-2:   #ac4335;
+    --verde:     #6fb98a;
+    --ambra:     #d9a441;
+    --blu:       #7aa6d6;
+    --riga:      #3a342a;
+    --riga-2:    #4d4638;
+    --ombra:     0 1px 2px rgba(0,0,0,.45);
+  }
+}
+
+:root[data-luce="notte"] {
+  --carta:     #15130f;
+  --carta-2:   #1d1a15;
+  --carta-3:   #26221b;
+  --carta-4:   #332d24;
+  --inchiostro:  #ddd5c5;
+  --inchiostro-2:#a49b8a;
+  --inchiostro-3:#77705f;
+  --rosso:     #d4594a;
+  --rosso-2:   #ac4335;
+  --verde:     #6fb98a;
+  --ambra:     #d9a441;
+  --blu:       #7aa6d6;
+  --riga:      #3a342a;
+  --riga-2:    #4d4638;
+  --ombra:     0 1px 2px rgba(0,0,0,.45);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--carta);
+  color: var(--inchiostro);
+  font: 16px/1.6 var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* La grana della carta: appena percettibile, tiene insieme il fondo. */
+  background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.016) 0 1px, transparent 1px 3px);
+}
+
+a { color: var(--rosso); text-decoration: none; border-bottom: 1px solid rgba(165,40,29,.35); }
+a:hover { border-bottom-color: currentColor; }
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.2; margin: 0 0 .5rem; }
+h1 { font-size: 1.9rem; letter-spacing: -.01em; }
+h2 { font-size: 1.3rem; margin-top: 1.6rem; }
+h3 { font-size: 1.05rem; margin-top: 1.2rem; }
+p  { margin: 0 0 .9rem; }
+
+/* --- Testata --------------------------------------------------------------- */
+
+.testata {
+  border-bottom: 3px double var(--riga-2);
+  background: var(--carta-2);
+}
+.testata-corpo {
+  max-width: 68rem; margin: 0 auto; padding: .7rem 1.2rem;
+  display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap;
+}
+.marchio { border: 0; display: flex; align-items: baseline; gap: .6rem; }
+.marchio b {
+  font-family: var(--serif); font-size: 1.45rem; letter-spacing: -.02em;
+  color: var(--inchiostro);
+}
+.marchio span {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .16em;
+  color: var(--inchiostro-3);
+}
+.nav-alto { margin-left: auto; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.nav-alto a, .nav-alto form { font-size: .82rem; }
+.nav-alto a { border: 0; color: var(--inchiostro-2); text-transform: uppercase; letter-spacing: .08em; }
+.nav-alto a:hover { color: var(--rosso); }
+.nav-alto .chi { color: var(--inchiostro-3); font-size: .78rem; letter-spacing: .04em; }
+
+main { flex: 1; width: 100%; max-width: 68rem; margin: 0 auto; padding: 1.6rem 1.2rem 3rem; }
+
+/* --- Fogli (i pannelli) ---------------------------------------------------- */
+
+.foglio {
+  background: var(--carta-2);
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio);
+  box-shadow: var(--ombra);
+  padding: 1.4rem 1.5rem;
+  margin: 0 0 1.4rem;
+}
+.foglio--stretto { max-width: 34rem; margin-left: auto; margin-right: auto; }
+.foglio--largo   { max-width: none; }
+
+.occhiello {
+  display: inline-block;
+  font-size: .66rem; text-transform: uppercase; letter-spacing: .18em;
+  color: var(--rosso); border-bottom: 1px solid var(--rosso);
+  padding-bottom: .15rem; margin-bottom: .7rem;
+}
+.sommario { color: var(--inchiostro-2); }
+.minuto   { font-size: .82rem; color: var(--inchiostro-3); }
+
+/* --- Griglie --------------------------------------------------------------- */
+
+.griglia { display: grid; gap: 1.2rem; }
+.griglia--2 { grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.griglia--3 { grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+
+/* --- Dati e numeri --------------------------------------------------------- */
+
+.dato { border-left: 2px solid var(--riga-2); padding-left: .8rem; }
+.dato dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; color: var(--inchiostro-3); }
+.dato dd { margin: .15rem 0 0; font-family: var(--mono); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+
+.cifra { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* --- Tabelle --------------------------------------------------------------- */
+
+.tabella-avvolgi { overflow-x: auto; }
+table.tabella { width: 100%; border-collapse: collapse; font-size: .9rem; }
+table.tabella th {
+  text-align: left; font-size: .66rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--inchiostro-3); font-weight: 700;
+  border-bottom: 1px solid var(--riga-2); padding: .4rem .6rem;
+  white-space: nowrap;
+}
+table.tabella td { padding: .45rem .6rem; border-bottom: 1px solid var(--riga); vertical-align: top; }
+table.tabella tr:last-child td { border-bottom: 0; }
+table.tabella tbody tr:hover { background: var(--carta-3); }
+table.tabella .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* --- Moduli ---------------------------------------------------------------- */
+
+.campo { margin-bottom: 1rem; }
+.campo label {
+  display: block; font-size: .7rem; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--inchiostro-3); margin-bottom: .3rem;
+}
+.campo input, .campo select, .campo textarea {
+  width: 100%; padding: .55rem .7rem;
+  background: var(--carta); color: var(--inchiostro);
+  border: 1px solid var(--riga-2); border-radius: var(--raggio);
+  font: 1rem/1.4 var(--sans);
+}
+.campo input:focus, .campo select:focus, .campo textarea:focus {
+  outline: 2px solid var(--rosso); outline-offset: 1px; border-color: var(--rosso);
+}
+.campo .aiuto { font-size: .76rem; color: var(--inchiostro-3); margin-top: .25rem; }
+.campo textarea { min-height: 6rem; resize: vertical; font-family: var(--sans); }
+
+.azioni { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; margin-top: 1.2rem; }
+
+button, .bottone {
+  display: inline-block; cursor: pointer;
+  font: 700 .8rem/1 var(--sans); text-transform: uppercase; letter-spacing: .1em;
+  padding: .65rem 1.2rem;
+  background: var(--rosso); color: #f6f2e8;
+  border: 1px solid var(--rosso-2); border-radius: var(--raggio);
+  text-decoration: none;
+}
+button:hover, .bottone:hover { background: var(--rosso-2); color: #fff; }
+.bottone--fantasma, button.bottone--fantasma {
+  background: transparent; color: var(--inchiostro-2); border-color: var(--riga-2);
+}
+.bottone--fantasma:hover, button.bottone--fantasma:hover {
+  background: var(--carta-3); color: var(--inchiostro); border-color: var(--inchiostro-3);
+}
+.bottone--minuto { padding: .35rem .7rem; font-size: .68rem; }
+
+/* --- Avvisi ---------------------------------------------------------------- */
+
+.avviso {
+  border: 1px solid var(--riga-2); border-left: 4px solid var(--inchiostro-3);
+  background: var(--carta-2); padding: .8rem 1rem; margin: 0 0 1.2rem;
+  border-radius: var(--raggio); font-size: .92rem;
+}
+.avviso--errore      { border-left-color: var(--rosso); }
+.avviso--ok          { border-left-color: var(--verde); }
+.avviso--attenzione  { border-left-color: var(--ambra); }
+
+/* --- Etichette di stato ---------------------------------------------------- */
+
+.stato {
+  display: inline-block; font: 700 .64rem/1 var(--sans);
+  text-transform: uppercase; letter-spacing: .1em;
+  padding: .28rem .5rem; border-radius: var(--raggio);
+  border: 1px solid currentColor;
+}
+.stato--attivo    { color: var(--verde); }
+.stato--attesa    { color: var(--ambra); }
+.stato--sospeso   { color: var(--rosso); }
+.stato--admin     { color: var(--blu); }
+
+/* --- Elenchi di fasi (a che punto siamo) ----------------------------------- */
+
+.fasi { list-style: none; margin: 0; padding: 0; }
+.fasi li {
+  display: grid; grid-template-columns: 2.6rem 1fr auto; gap: .8rem; align-items: baseline;
+  padding: .5rem 0; border-bottom: 1px solid var(--riga);
+}
+.fasi li:last-child { border-bottom: 0; }
+.fasi .sigla { font-family: var(--mono); color: var(--inchiostro-3); font-size: .85rem; }
+.fasi .fatta .sigla, .fasi .fatta .voce { color: var(--inchiostro); }
+.fasi .voce { color: var(--inchiostro-3); }
+.fasi .esito { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--inchiostro-3); }
+.fasi .fatta .esito { color: var(--verde); }
+
+/* --- Barra dell'amministrazione -------------------------------------------- */
+
+.nav-admin {
+  display: flex; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--riga-2); padding-bottom: .6rem; margin-bottom: 1.4rem;
+}
+.nav-admin a {
+  border: 0; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--inchiostro-2);
+}
+.nav-admin a:hover { color: var(--rosso); }
+
+/* --- Prosa ----------------------------------------------------------------- */
+
+.prosa { max-width: 40rem; }
+.prosa h2 { border-bottom: 1px solid var(--riga); padding-bottom: .3rem; }
+.prosa ul, .prosa ol { margin: 0 0 1rem; padding-left: 1.3rem; }
+.prosa li { margin-bottom: .35rem; }
+blockquote {
+  margin: 1.2rem 0; padding: .2rem 0 .2rem 1.1rem;
+  border-left: 3px solid var(--rosso); color: var(--inchiostro-2);
+  font-family: var(--serif); font-style: italic;
+}
+code, pre { font-family: var(--mono); font-size: .88em; }
+pre {
+  background: var(--carta-3); border: 1px solid var(--riga);
+  padding: .8rem 1rem; border-radius: var(--raggio); overflow-x: auto;
+}
+
+/* --- Colophon -------------------------------------------------------------- */
+
+footer {
+  border-top: 3px double var(--riga-2); background: var(--carta-2);
+  font-size: .76rem; color: var(--inchiostro-3);
+}
+.colophon {
+  max-width: 68rem; margin: 0 auto; padding: 1rem 1.2rem;
+  display: flex; gap: 1.2rem; flex-wrap: wrap; justify-content: space-between;
+}
+.colophon a { color: var(--inchiostro-2); border-bottom-color: var(--riga); }
+
+/* --- Schermi stretti ------------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  main { padding: 1rem .8rem 2.5rem; }
+  .foglio { padding: 1.1rem 1rem; }
+  h1 { font-size: 1.5rem; }
+  .testata-corpo { padding: .6rem .8rem; gap: .6rem; }
+  .nav-alto { gap: .7rem; width: 100%; margin-left: 0; }
+}
+
+/* --- Ordini di mercato ------------------------------------------------------ */
+
+.ordine { display: flex; gap: .3rem; align-items: center; margin: 0; }
+.ordine input[type=number] {
+  width: 4.5rem; padding: .3rem .4rem;
+  background: var(--carta); color: var(--inchiostro);
+  border: 1px solid var(--riga-2); border-radius: var(--raggio);
+  font: .85rem/1 var(--mono); font-variant-numeric: tabular-nums;
+}
+.ordine button { padding: .35rem .6rem; font-size: .66rem; letter-spacing: .06em; }
+.ordine button[disabled] { opacity: .35; cursor: not-allowed; }
+
+@media (max-width: 40rem) {
+  .ordine { flex-wrap: wrap; }
+}
+
+/* --- La fotografia del profilo ---------------------------------------------- */
+
+.avatar {
+  display: block; border-radius: var(--raggio);
+  border: 1px solid var(--riga-2); box-shadow: var(--ombra);
+  object-fit: cover; background: var(--carta-3);
+}
+.avatar--grande { width: 100%; max-width: 15rem; height: auto; aspect-ratio: 1; }
+.avatar--vuoto {
+  display: grid; place-items: center;
+  font-family: var(--serif); font-size: 5rem; color: var(--inchiostro-3);
+}
+
+.vetrina { display: flex; gap: 1.2rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 1rem; }
+.vetrina .avatar--grande { max-width: 9rem; }
+
+/* Il riquadro di centratura: quadrato, e quello che esce non si vede. */
+.cornice {
+  position: relative; width: 100%; max-width: 15rem; aspect-ratio: 1;
+  overflow: hidden; border: 1px solid var(--riga-2); border-radius: var(--raggio);
+  background: var(--carta-3); cursor: grab; touch-action: none; margin-top: .6rem;
+}
+.cornice:active { cursor: grabbing; }
+.cornice img { position: absolute; max-width: none; user-select: none; -webkit-user-drag: none; }
+/* Il mirino: due righe che dicono dove sta il centro. */
+.cornice::after {
+  content: ''; position: absolute; inset: 12%;
+  border: 1px dashed rgba(165, 40, 29, .45); border-radius: 50%; pointer-events: none;
+}

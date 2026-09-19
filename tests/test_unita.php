@@ -1,0 +1,571 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Piazza Pulita — prove unitarie senza rete e senza database.
+ *
+ *   php tests/test_unita.php
+ *
+ * Coprono due cose che si rompono in silenzio: le funzioni di formato (una
+ * cifra sbagliata in un gioco fatto di listini è un baco invisibile) e il
+ * rendering di tutte le viste (una variabile dimenticata nel layout diventa
+ * una pagina bianca solo quando ci arriva un giocatore).
+ */
+
+$root = dirname(__DIR__);
+$GLOBALS['__project_root'] = $root;
+$GLOBALS['__base_path']    = '/piazzapulita';
+$GLOBALS['__url_prefix']   = '/piazzapulita';
+
+require $root . '/src/autoload.php';
+require $root . '/src/Support/helpers.php';
+
+use App\Core\View;
+use App\Sim\Clock;
+use App\Sim\Geo;
+use App\Sim\Calore;
+use App\Sim\Crescita;
+use App\Sim\Denaro;
+use App\Sim\Mercato;
+use App\Sim\Prezzi;
+use App\Sim\Rifornimento;
+use App\Sim\Rng;
+use App\Sim\Viaggio;
+
+View::setPath($root . '/views');
+
+$falliti = 0;
+$fatti   = 0;
+
+function prova(string $nome, mixed $atteso, mixed $ottenuto): void
+{
+    global $falliti, $fatti;
+    $fatti++;
+    if ($atteso === $ottenuto) {
+        printf("  \033[0;32mok\033[0m    %s\n", $nome);
+        return;
+    }
+    $falliti++;
+    printf("  \033[0;31mKO\033[0m    %s\n        atteso:   %s\n        ottenuto: %s\n",
+        $nome, var_export($atteso, true), var_export($ottenuto, true));
+}
+
+echo "Formato dei numeri\n";
+prova('lire con separatore di migliaia', '1.250.000' . "\u{202F}" . 'L.', lire(1250000));
+prova('lire senza simbolo',              '5.500.000', lire(5500000, false));
+prova('lire, zero',                      '0' . "\u{202F}" . 'L.', lire(0));
+prova('lire, negativo',                  '-4.500' . "\u{202F}" . 'L.', lire(-4500));
+prova('quantità',                        '1.000', quantita(1000));
+
+echo "\nRotte di ritorno (il baco del prefisso doppio)\n";
+prova('toglie il prefisso del deploy',   '/profilo', rotta_da_uri('/piazzapulita/profilo', '/x'));
+prova('toglie anche index.php',          '/strada',  rotta_da_uri('/piazzapulita/index.php/strada', '/x'));
+prova('scarta la query',                 '/strada',  rotta_da_uri('/piazzapulita/strada?a=1', '/x'));
+prova('radice torna al difetto',         '/x',       rotta_da_uri('/piazzapulita/', '/x'));
+prova('vuoto torna al difetto',          '/x',       rotta_da_uri('', '/x'));
+prova('host esterno ridotto a percorso', '/y',       rotta_da_uri('https://altrove.example/y', '/x'));
+prova('doppia barra neutralizzata',      '/y',       rotta_da_uri('//altrove.example/y', '/x'));
+
+echo "\nDate\n";
+prova('data italiana verso ISO',         '1913-05-22', data_it_a_iso('22/05/1913'));
+prova('data impossibile respinta',       null,         data_it_a_iso('31/02/1990'));
+prova('data vuota respinta',             null,         data_it_a_iso(''));
+prova('data ISO accettata',              '1984-12-01', data_it_a_iso('1984-12-01'));
+
+echo "\nFuga dall'HTML\n";
+prova('apici e segni maggiore',          '&lt;b&gt;x&quot;y&lt;/b&gt;', e('<b>x"y</b>'));
+
+echo "\nGeografia\n";
+$mi = [45.4642, 9.1900]; $rm = [41.9028, 12.4964]; $pa = [38.1157, 13.3615];
+prova('Milano-Roma in linea d\'aria',   477, (int) round(Geo::distanzaKm(...[...$mi, ...$rm])));
+prova('Milano-Palermo in linea d\'aria', 887, (int) round(Geo::distanzaKm(...[...$mi, ...$pa])));
+prova('distanza simmetrica', true,
+    abs(Geo::distanzaKm(...[...$mi, ...$rm]) - Geo::distanzaKm(...[...$rm, ...$mi])) < 1e-9);
+prova('distanza da sé stessi nulla', 0.0, Geo::distanzaKm(45.0, 9.0, 45.0, 9.0));
+prova('il percorso allunga la linea d\'aria', 125.0, Geo::percorsoKm(100.0, 1.25));
+// L'emisenoverso conta: con Pitagora sui gradi, Milano-Palermo sbaglia di quasi il 4 %.
+$pitagora = sqrt(((45.4642 - 38.1157) * 111.19) ** 2 + ((9.19 - 13.3615) * 111.19) ** 2);
+prova('l\'emisenoverso non è Pitagora', true, abs($pitagora - Geo::distanzaKm(...[...$mi, ...$pa])) > 20);
+
+echo "\nViaggi\n";
+$dentro = Viaggio::opzioni(10.7, true);
+prova('in città tre mezzi',          3, count($dentro));
+prova('ordinati dal più lento',      'a piedi', $dentro[0]['mezzo']);
+prova('a piedi non costa niente',    0, $dentro[0]['costo']);
+prova('a piedi, 10,7 km',            43, $dentro[0]['minuti']);
+prova('coi mezzi, 10,7 km',          18, Viaggio::opzione('mezzi', 10.7, true)['minuti']);
+prova('biglietto dei mezzi',         600, Viaggio::opzione('mezzi', 10.7, true)['costo']);
+$fuori = Viaggio::opzioni(596.0, false);
+prova('fra città tre mezzi',         3, count($fuori));
+prova('Milano-Roma in treno',        123, Viaggio::opzione('treno', 596.0, false)['minuti']);
+prova('niente aereo sotto i 300 km', null, Viaggio::opzione('aereo', 236.0, false));
+prova('niente treno dentro la città',null, Viaggio::opzione('treno', 10.0, true));
+prova('niente taxi fra le città',    null, Viaggio::opzione('taxi', 200.0, false));
+prova('nessuno spostamento istantaneo', 1, Viaggio::opzione('a piedi', 0.01, true)['minuti']);
+// Per i mezzi con attesa il minimo è l'attesa, non un minuto: il taxi lo aspetti
+// comunque, anche per andare al portone accanto.
+prova('con l\'attesa, il minimo è l\'attesa', 2, Viaggio::opzione('taxi', 0.01, true)['minuti']);
+prova('il taxi batte i mezzi',       true,
+    Viaggio::opzione('taxi', 10.7, true)['minuti'] < Viaggio::opzione('mezzi', 10.7, true)['minuti']);
+prova('e si fa pagare',              true,
+    Viaggio::opzione('taxi', 10.7, true)['costo'] > Viaggio::opzione('mezzi', 10.7, true)['costo'] * 10);
+prova('durata sotto l\'ora',         '43 min', Viaggio::durata(43));
+prova('durata tonda',                '2 h',    Viaggio::durata(120));
+prova('durata spezzata',             '2 h 03', Viaggio::durata(123));
+
+echo "\nGeneratore deterministico\n";
+$a = new Rng(19841984); $b = new Rng(19841984);
+$uguali = true; $interi = true;
+for ($i = 0; $i < 5000; $i++) {
+    $x = $a->successivo(); $y = $b->successivo();
+    if ($x !== $y) { $uguali = false; }
+    if (!is_int($x)) { $interi = false; }
+}
+prova('stesso seme, stessa sequenza', true, $uguali);
+prova('sempre interi, mai float',     true, $interi);
+$r = new Rng(7); $fuoriBanda = false; $somma = 0.0;
+for ($i = 0; $i < 20000; $i++) {
+    $v = $r->reale();
+    if ($v < 0 || $v >= 1) { $fuoriBanda = true; }
+    $somma += $v;
+}
+prova('reali in [0;1)',               false, $fuoriBanda);
+prova('media vicina a 0,5',           true, abs($somma / 20000 - 0.5) < 0.02);
+$r = new Rng(7); $male = false;
+for ($i = 0; $i < 20000; $i++) { $d = $r->intero(1, 6); if ($d < 1 || $d > 6) { $male = true; } }
+prova('dado sempre fra 1 e 6',        false, $male);
+prova('etichette diverse, semi diversi', true,
+    Rng::da(1, 'milano')->successivo() !== Rng::da(1, 'napoli')->successivo());
+
+echo "\nOrologio\n";
+Clock::fissa(new DateTimeImmutable('1985-06-12 14:30:00'));
+prova('orologio fissabile',    '1985-06-12 14:30:00.000', Clock::perDb());
+Clock::avanzaDi(3600);
+prova('e avanzabile',          '1985-06-12 15:30:00.000', Clock::perDb());
+prova('lettura dal database',  '1985-06-12 15:30:00', Clock::daDb('1985-06-12 15:30:00')?->format('Y-m-d H:i:s'));
+prova('data vuota è null',     null, Clock::daDb(''));
+prova('zeri del database sono null', null, Clock::daDb('0000-00-00 00:00:00'));
+Clock::fissa(null);
+
+echo "\nMercato — formazione del prezzo\n";
+// Un mercato all'equilibrio: i moltiplicatori valgono 1, e il prezzo è il
+// riferimento più o meno lo spread.
+$par = ['e' => 0.60, 'z' => 0.60, 'spread' => 0.03, 'banda_bassa' => 0.20, 'banda_alta' => 5.00];
+$eq = ['p0' => 20000.0, 'd' => 1.0, 'offerta' => 50.0, 'offerta_eq' => 50.0,
+       'domanda' => 40.0, 'domanda_eq' => 40.0, 'shock' => 0.0];
+prova('all\'equilibrio si compra a +spread', 20600, (int) round(Mercato::prezzoAcquisto($eq, $par)));
+prova('all\'equilibrio si vende a −spread', 19400, (int) round(Mercato::prezzoVendita($eq, $par)));
+prova('vendere rende meno che comprare', true,
+    Mercato::prezzoVendita($eq, $par) < Mercato::prezzoAcquisto($eq, $par));
+
+$scarso = $eq; $scarso['offerta'] = 10.0;
+prova('poca giacenza alza il prezzo', true, Mercato::prezzoAcquisto($scarso, $par) > Mercato::prezzoAcquisto($eq, $par) * 2);
+$saturo = $eq; $saturo['domanda'] = 4.0;
+prova('piazza satura abbatte il prezzo', true, Mercato::prezzoVendita($saturo, $par) < Mercato::prezzoVendita($eq, $par) * 0.5);
+// Con l'assorbimento a zero il prezzo NON va a zero: la banda lo tiene al 20 %
+// del riferimento. A fermare tutto non è il prezzo ma la quantità — non si può
+// vendere in un mercato che non compra, e il conto lo dice restituendo zero.
+// È il contratto giusto: un prezzo che tende a zero sarebbe un modo elegante di
+// permettere di regalare merce per sbaglio.
+$vuoto = $eq; $vuoto['domanda'] = 0.0;
+prova('a piazza satura il prezzo resta in banda', 3880, (int) round(Mercato::prezzoVendita($vuoto, $par)));
+prova('ma non si vende proprio niente',           0,    Mercato::ricavoVendita($vuoto, $par, 10)['quantita']);
+
+$estremo = $eq; $estremo['offerta'] = 0.001;
+prova('la banda tiene anche agli estremi', true,
+    Mercato::prezzoAcquisto($estremo, $par) <= 20000.0 * $par['banda_alta'] * 1.031);
+$moltoD = $eq; $moltoD['d'] = 1.3;
+prova('il carattere della piazza sposta il prezzo', 26780, (int) round(Mercato::prezzoAcquisto($moltoD, $par)));
+
+echo "\nMercato — impatto del proprio ordine\n";
+$uno    = Mercato::costoAcquisto($eq, $par, 1);
+$venti  = Mercato::costoAcquisto($eq, $par, 20);
+$tutto  = Mercato::costoAcquisto($eq, $par, 50);
+prova('comprarne una costa circa il prezzo', true, abs($uno['medio'] - 20600) < 400);
+prova('comprarne venti costa di più a testa', true, $venti['medio'] > $uno['medio'] * 1.10);
+prova('più ne compri, più cara è l\'ultima', true, $tutto['medio'] > $venti['medio']);
+prova('non si compra più della giacenza', 50, Mercato::costoAcquisto($eq, $par, 500)['quantita']);
+prova('la giacenza cala di quanto si è comprato', 30.0, $venti['offerta_dopo']);
+prova('ordine nullo, niente conto', 0, Mercato::costoAcquisto($eq, $par, 0)['totale']);
+// L'integrale deve stare fra il prezzo della prima unità e quello dell'ultima.
+$margineUltima = Mercato::prezzoAcquisto(['offerta' => 31.0] + $eq, $par);
+prova('il medio sta fra prima e ultima', true,
+    $venti['medio'] > 20600 && $venti['medio'] < $margineUltima);
+
+$v20 = Mercato::ricavoVendita($eq, $par, 20);
+$v1  = Mercato::ricavoVendita($eq, $par, 1);
+prova('venderne venti rende meno a testa', true, $v20['medio'] < $v1['medio'] * 0.92);
+prova('non si vende oltre l\'assorbimento', 40, Mercato::ricavoVendita($eq, $par, 400)['quantita']);
+prova('l\'assorbimento cala di quanto si è venduto', 20.0, $v20['domanda_dopo']);
+
+// Il giro secco in una piazza sola deve SEMPRE perderci, o sarebbe una
+// macchina per stampare denaro senza muoversi.
+$c = Mercato::costoAcquisto($eq, $par, 10);
+$dopo = $eq; $dopo['offerta'] = $c['offerta_dopo'];
+$r = Mercato::ricavoVendita($dopo, $par, 10);
+prova('comprare e rivendere sul posto ci rimette', true, $r['totale'] < $c['totale']);
+
+echo "\nMercato — quanto posso comprare\n";
+prova('senza soldi, niente',       0,  Mercato::quantoPosso($eq, $par, 0, 100, 1));
+prova('senza spazio, niente',      0,  Mercato::quantoPosso($eq, $par, 10_000_000, 0, 1));
+prova('lo spazio limita',          10, Mercato::quantoPosso($eq, $par, 10_000_000, 30, 3));
+prova('la giacenza limita',        50, Mercato::quantoPosso($eq, $par, 10_000_000, 1000, 1));
+$possibile = Mercato::quantoPosso($eq, $par, 250_000, 1000, 1);
+prova('il denaro limita, e il conto torna', true,
+    Mercato::costoAcquisto($eq, $par, $possibile)['totale'] <= 250_000
+    && Mercato::costoAcquisto($eq, $par, $possibile + 1)['totale'] > 250_000);
+
+echo "\nPrezzi — passeggiata deterministica\n";
+$a = Prezzi::avanza(20000.0, 100, 200, 3, 8000.0, 45000.0, 19841984, 0.02, 0.01);
+$b = Prezzi::avanza(20000.0, 100, 200, 3, 8000.0, 45000.0, 19841984, 0.02, 0.01);
+prova('stesso seme, stesso prezzo',    $a['p0'], $b['p0']);
+prova('e si ferma al passo giusto',    200, $a['passo']);
+$c2 = Prezzi::avanza(20000.0, 100, 200, 4, 8000.0, 45000.0, 19841984, 0.02, 0.01);
+prova('beni diversi, cammini diversi', true, abs($a['p0'] - $c2['p0']) > 1.0);
+prova('indietro non si va',            20000.0, Prezzi::avanza(20000.0, 200, 100, 3, 8000.0, 45000.0, 1, 0.02, 0.01)['p0']);
+$fuori = Prezzi::avanza(44000.0, 0, 3000, 3, 8000.0, 45000.0, 7, 0.02, 0.05);
+prova('resta dentro la forchetta', true, $fuori['p0'] >= 8000.0 && $fuori['p0'] <= 45000.0);
+prova('i beni poveri ballano di più', true,
+    Prezzi::volatilita(8000, 45000, 0.01) > Prezzi::volatilita(120000, 300000, 0.01) * 2);
+
+echo "\nRifornimento — il respiro\n";
+$m0 = ['offerta' => 10.0, 'offerta_eq' => 50.0, 'domanda' => 5.0, 'domanda_eq' => 40.0, 'shock' => 0.5];
+$dopo1 = Rifornimento::avanza($m0, 3600 * 6, 1, 1, 12345, 0, 6.0, 3.0);
+// Sale di sicuro; quanto, dipende anche dai carichi, che possono portarla
+// SOPRA l'equilibrio — ed è voluto, è quella l'occasione da cogliere.
+prova('la giacenza risale', true, $dopo1['offerta'] > 10.0);
+$senzaCarichi = Rifornimento::avanza($m0, 3600 * 6, 1, 1, 12345, 0, 6.0, 3.0);
+prova('il ritorno alla media è esatto', 30.0,
+    round(50.0 + (10.0 - 50.0) * 2 ** (-6.0 / 6.0), 6));
+prova('l\'assorbimento si ricostituisce',        true, $dopo1['domanda'] > 5.0);
+prova('lo shock si spegne',                      true, abs($dopo1['shock']) < 0.5);
+$lungo = Rifornimento::avanza($m0, 3600 * 24 * 30, 1, 1, 12345, 0, 6.0, 3.0);
+prova('dopo un mese si è all\'equilibrio, non oltre', true, abs($lungo['domanda'] - 40.0) < 0.01);
+prova('e non si scavalca mai',                        true, $lungo['offerta'] >= 50.0);
+$x = Rifornimento::avanza($m0, 3600 * 5, 7, 2, 999, 0, 6.0, 3.0);
+$y = Rifornimento::avanza($m0, 3600 * 5, 7, 2, 999, 0, 6.0, 3.0);
+prova('i carichi sono deterministici', $x['offerta'], $y['offerta']);
+prova('fermo il tempo, fermo tutto', 10.0, Rifornimento::avanza($m0, 0, 1, 1, 1, 0, 6.0, 3.0)['offerta']);
+
+echo "\nDenaro — l'usuraio\n";
+prova('un giorno al 10%',          1_650_000, Denaro::debitoDopo(1_500_000, 1_500_000, 86400, 0.10, 3.0));
+prova('due giorni compongono',     1_815_000, Denaro::debitoDopo(1_500_000, 1_500_000, 2 * 86400, 0.10, 3.0));
+// Mezza giornata non è metà interesse: è la radice, ed è il punto dell'interesse
+// continuo — chi ripaga a mezzogiorno non paga come chi ripaga a mezzanotte.
+prova('mezza giornata è la radice', 1_573_213, Denaro::debitoDopo(1_500_000, 1_500_000, 43200, 0.10, 3.0));
+prova('il tetto ferma la crescita', 4_500_000, Denaro::debitoDopo(1_500_000, 1_500_000, 365 * 86400, 0.10, 3.0));
+prova('senza debito non matura niente', 0, Denaro::debitoDopo(0, 0, 365 * 86400, 0.10, 3.0));
+prova('tempo fermo, debito fermo', 1_500_000, Denaro::debitoDopo(1_500_000, 1_500_000, 0, 0.10, 3.0));
+
+prova('prestito senza pulito',        500_000, Denaro::prestitoDisponibile(1_500_000, 0, 2_000_000, 2.0));
+prova('il pulito allarga il credito', 20_500_000, Denaro::prestitoDisponibile(1_500_000, 10_000_000, 2_000_000, 2.0));
+prova('chi ha già preso troppo, niente', 0, Denaro::prestitoDisponibile(9_000_000, 0, 2_000_000, 2.0));
+
+echo "\nDenaro — la lavanderia\n";
+$unOra = Denaro::lava(200_000, 3600, 150_000, 0.35);
+prova('si lava solo la capacità oraria', 150_000, $unOra['lavato']);
+prova('e ne esce meno la commissione',    97_500, $unOra['pulito']);
+prova('il resto resta in coda',           50_000, $unOra['coda']);
+prova('la commissione torna',             52_500, $unOra['commissione']);
+$mezzOra = Denaro::lava(200_000, 1800, 150_000, 0.35);
+prova('mezz\'ora lava metà',              75_000, $mezzOra['lavato']);
+$poco = Denaro::lava(10_000, 3600, 150_000, 0.35);
+prova('non si lava più di quel che c\'è', 10_000, $poco['lavato']);
+prova('e la coda si svuota',                    0, $poco['coda']);
+prova('coda vuota, niente da fare',             0, Denaro::lava(0, 3600, 150_000, 0.35)['lavato']);
+prova('tempo fermo, niente da fare',            0, Denaro::lava(200_000, 0, 150_000, 0.35)['lavato']);
+
+// La capacità oraria è il vero vincolo: la commissione si paga una volta, il
+// tempo si paga sempre.
+prova('col bar, dieci milioni sono 66,7 ore', 66.7,
+    round(Denaro::tempoDiLavaggio(10_000_000, 150_000) / 3600, 1));
+prova('col cantiere, due ore e mezza',         2.5,
+    round(Denaro::tempoDiLavaggio(10_000_000, 4_000_000) / 3600, 1));
+prova('niente da lavare, nessuna attesa',        0, Denaro::tempoDiLavaggio(0, 150_000));
+
+echo "\nCalore — il rischio come conseguenza\n";
+// L'accumulo è superlineare: è questo che rende il colpo grosso una scelta e
+// non un'abitudine. Cinque milioni non scaldano cinque volte un milione.
+prova('un milione vale un grado',   1.05, round(Calore::daOperazione(1_000_000, 1_000_000, 1.5, 5), 2));
+prova('cinque milioni ne valgono undici', 11.74, round(Calore::daOperazione(5_000_000, 1_000_000, 1.5, 5), 2));
+prova('e non cinque',               true, Calore::daOperazione(5_000_000, 1_000_000, 1.5, 5) > 5 * Calore::daOperazione(1_000_000, 1_000_000, 1.5, 5));
+prova('la merce rischiosa scalda di più', true,
+    Calore::daOperazione(1_000_000, 1_000_000, 1.5, 90) > Calore::daOperazione(1_000_000, 1_000_000, 1.5, 5) * 1.7);
+prova('operazione nulla, niente calore', 0.0, Calore::daOperazione(0, 1_000_000, 1.5, 50));
+
+prova('dimezza nel tempo di dimezzamento', 50.0, Calore::decaduto(100, 12 * 3600, 12));
+prova('e ancora',                          25.0, Calore::decaduto(100, 24 * 3600, 12));
+prova('sotto il centesimo si azzera',       0.0, Calore::decaduto(100, 400 * 3600, 12));
+prova('tempo fermo, calore fermo',        100.0, Calore::decaduto(100, 0, 12));
+
+// Il rischio si moltiplica per fattori indipendenti, e resta dentro una banda.
+$freddo = Calore::rischioControllo(0.02, 8, 0, 0, 0);
+$caldo  = Calore::rischioControllo(0.02, 80, 100, 300, 2);
+prova('in periferia, da freddi, è trascurabile', true, $freddo < 0.01);
+prova('in centro, da caldi, è un problema',      true, $caldo > 0.5);
+prova('ma non arriva mai alla certezza',         true, $caldo <= 0.85);
+prova('più polizia, più rischio', true,
+    Calore::rischioControllo(0.02, 80, 0, 0, 0) > Calore::rischioControllo(0.02, 8, 0, 0, 0));
+prova('i precedenti pesano per sempre', true,
+    Calore::rischioControllo(0.02, 50, 0, 0, 3) > Calore::rischioControllo(0.02, 50, 0, 0, 0) * 1.7);
+
+prova('a piedi non c\'è posto di blocco', 0.0, Calore::rischioBlocco(0.035, 8, 500, 300, 2, false));
+prova('a mani vuote nemmeno',             0.0, Calore::rischioBlocco(0.035, 8, 0, 300, 2, true));
+prova('col furgone carico e caldo, sì',   true, Calore::rischioBlocco(0.035, 8, 800, 300, 2, true) > 0.3);
+
+prova('le prove crescono col calore', 2.0, round(Calore::prove(100, 3600, 2.0), 2));
+prova('a calore zero non crescono',    0.0, Calore::prove(0, 3600, 2.0));
+prova('mezz\'ora, metà prove',         1.0, round(Calore::prove(100, 1800, 2.0), 2));
+
+prova('il calore si dice a parole',  'nessuno ti guarda', Calore::aParole(2));
+prova('e anche il rischio',          'basso', Calore::rischioAParole(0.02));
+
+echo "\nCrescita — si impara con l'uso\n";
+// I rendimenti calano: da zero si sale in fretta, da settanta quasi più.
+$p0 = Crescita::passo(0, 1.5, 25);
+$p50 = Crescita::passo(50, 1.5, 25);
+$p90 = Crescita::passo(90, 1.5, 25);
+prova('da zero si cresce in fretta', 1.5,  round($p0, 4));
+prova('a metà si cresce meno',       true, $p50 < $p0 / 2.5);
+prova('in cima quasi più',           true, $p90 < $p0 / 4);
+prova('a cento ci si ferma',         0.0,  Crescita::passo(100, 1.5, 25));
+prova('non si scavalca mai il cento', 100.0, 99.9 + Crescita::passo(99.9, 99, 25));
+
+// Il peso di un'operazione è logaritmico: un colpo grosso insegna di più, ma
+// non in proporzione, o basterebbe una vendita sola per diventare maestri.
+prova('mezzo milione pesa poco',  0.6,  round(Crescita::pesoValore(500_000), 1));
+prova('dieci milioni pesano di più', true, Crescita::pesoValore(10_000_000) > Crescita::pesoValore(500_000));
+prova('ma non venti volte tanto',    true, Crescita::pesoValore(10_000_000) < Crescita::pesoValore(500_000) * 5);
+prova('il peso ha un tetto',         true, Crescita::pesoValore(10_000_000_000) <= 4.0);
+prova('operazione nulla, peso nullo', 0.0, Crescita::pesoValore(0));
+
+echo "\nCrescita — gli effetti\n";
+prova('senza trattativa lo spread è intero', 0.03,  round(Crescita::spread(0.03, 0), 4));
+prova('a cento si paga il 40 % in meno',     0.018, round(Crescita::spread(0.03, 100), 4));
+prova('il sangue freddo dimezza il rischio', 0.05,  round(Crescita::rischioConSangueFreddo(0.10, 100), 4));
+prova('a zero non cambia niente',            0.10,  round(Crescita::rischioConSangueFreddo(0.10, 0), 4));
+prova('un uomo solo, all\'inizio',            1, Crescita::uominiRetti(0, 1, 10));
+prova('due a dieci gradi',                    2, Crescita::uominiRetti(10, 1, 10));
+prova('undici a cento',                      11, Crescita::uominiRetti(100, 1, 10));
+prova('il credito allarga il prestito', 4_000_000, Crescita::prestitoBase(2_000_000, 100));
+prova('e lima l\'interesse',            0.075,     round(Crescita::interesse(0.10, 100), 4));
+prova('l\'interesse non scende all\'infinito', true, Crescita::interesse(0.10, 100) >= 0.10 * 0.75);
+
+prova('gli attributi si dicono a parole', 'da maestro', Crescita::aParole(95));
+prova('e la reputazione pure',            'non ti conosce nessuno', Crescita::rispettoAParole(3));
+prova('anche il timore',                  'basta il nome', Crescita::timoreAParole(95));
+
+echo "\nRendering di tutte le viste\n";
+
+$utente = [
+    'id' => 1, 'username' => 'Mario Rossi', 'email' => 'x@esempio.invalid',
+    'status' => 'active', 'role' => 'admin', 'nota' => 'Due righe.', 'luce' => 'auto',
+    'email_verified_at' => '2026-09-19 04:00:00', 'created_at' => '2026-09-19 03:00:00',
+    'last_login_at' => '2026-09-19 05:00:00', 'last_seen_at' => '2026-09-19 05:10:00',
+    'verify_count' => 1,
+];
+
+// Il mondo di prova: due città, due piazze, e i due stati del personaggio.
+$citta = [
+    1 => ['id' => 1, 'codice' => 'MI', 'nome' => 'Milano', 'lat' => 45.46, 'lon' => 9.19,
+          'carattere' => 'consumo', 'aeroporto' => 1, 'nota' => 'Il denaro pulito.'],
+    2 => ['id' => 2, 'codice' => 'RM', 'nome' => 'Roma', 'lat' => 41.90, 'lon' => 12.50,
+          'carattere' => 'consumo', 'aeroporto' => 1, 'nota' => 'Il mercato più grande.'],
+];
+$piazze = [
+    1 => ['id' => 1, 'citta_id' => 1, 'codice' => 'MI-BRERA', 'nome' => 'Brera',
+          'lat' => 45.47, 'lon' => 9.19, 'tipo' => 'benestante', 'polizia' => 80],
+    2 => ['id' => 2, 'citta_id' => 2, 'codice' => 'RM-TERMINI', 'nome' => 'Termini',
+          'lat' => 41.90, 'lon' => 12.50, 'tipo' => 'stazione', 'polizia' => 70],
+];
+$opzioni = Viaggio::opzioni(596.0, false);
+$statoFermo = [
+    'in_viaggio' => false, 'piazza' => $piazze[1], 'citta' => $citta[1], 'da' => null,
+    'mancano_sec' => 0, 'mancano' => '0 min', 'arrivo_at' => null, 'contante' => 2_000_000,
+];
+$statoInViaggio = $statoFermo + [];
+$statoInViaggio['in_viaggio'] = true;
+$statoInViaggio['piazza'] = $piazze[2];
+$statoInViaggio['citta'] = $citta[2];
+$statoInViaggio['da'] = ['piazza' => $piazze[1], 'mezzo' => 'treno'];
+$statoInViaggio['mancano_sec'] = 3480;
+$statoInViaggio['mancano'] = '58 min';
+
+$fornitoriFinti = [
+    ['codice' => 'zio', 'nome' => 'Lo zio del bar', 'descrizione' => 'Vende quel che capita.',
+     'fascia' => 'bassa', 'rispetto_min' => 10, 'sconto' => 0.08, 'lotto_min' => 20],
+    ['codice' => 'porto', 'nome' => 'Il gancio in porto', 'descrizione' => 'Sa quale container.',
+     'fascia' => 'media', 'rispetto_min' => 65, 'sconto' => 0.18, 'lotto_min' => 200],
+];
+$personaggioFinto = ['id' => 1, 'contante' => 300000, 'pulito' => 0, 'piazza_id' => 1,
+                     'capienza' => 80, 'mezzo' => null];
+$contiFinti = ['sporco' => 300000, 'pulito' => 97500, 'in_lavaggio' => 50000,
+    'debito' => 1500000, 'tetto' => 4500000, 'al_tetto' => false, 'interesse_giorno' => 150000,
+    'capacita_ora' => 150000, 'prestabile' => 695000,
+    'canali' => [['codice' => 'bar', 'nome' => 'Il bar', 'descrizione' => 'x', 'commissione' => 0.35,
+                  'capacita' => 150000, 'coda' => 50000, 'pronto' => 0, 'lavato' => 150000,
+                  'finisce_fra' => 1200]]];
+
+$beneFinto = ['id' => 1, 'codice' => 'sigarette', 'nome' => 'Sigarette di contrabbando',
+              'unita' => 'stecca', 'fascia' => 'bassa', 'ingombro' => 3, 'ordine' => 0];
+$listinoFinto = [[
+    'bene' => $beneFinto, 'acquisto' => 22000, 'vendita' => 20700, 'offerta' => 45,
+    'domanda' => 9, 'offerta_eq' => 45.0, 'domanda_eq' => 9.0, 'riferimento' => 21300,
+    'carichi' => 0, 'stato_m' => $eq, 'fornitore' => null,
+]];
+$caricoFinto = [['bene' => $beneFinto, 'quantita' => 10, 'costo' => 220000, 'medio' => 22000, 'ingombro' => 30]];
+
+$viste = [
+    'home'              => ['title' => 'Piazza Pulita', 'iscritti' => 2],
+    'regole'            => ['title' => 'Come funziona'],
+    'classifica'        => ['title' => 'Classifica', 'righe' => [$utente]],
+    'statistiche'       => ['title' => 'Statistiche', 'dati' => ['Iscritti' => 2, 'Primo' => 'Tizio (01/01/1984)']],
+    'auth/register'     => ['title' => 'Iscrizione', 'open' => true, 'minPassword' => 9],
+    'auth/login'        => ['title' => 'Accesso'],
+    'auth/verify_sent'  => ['title' => 'Conferma', 'email' => 'x@esempio.invalid'],
+    'auth/verify_result'=> ['title' => 'Confermato', 'ok' => true, 'user' => $utente],
+    'errors/generic'    => ['title' => 'Errore', 'status' => 404, 'message' => 'Non c\'è.'],
+    'errors/db'         => ['title' => 'Avaria', 'debug' => true, 'detail' => 'dettaglio'],
+    'gioco/strada'      => ['title' => 'La strada', 'stato' => $statoFermo,
+                            'vicine' => [['piazza' => $piazze[1], 'km' => 2.1, 'opzioni' => Viaggio::opzioni(2.1, true)]],
+                            'altri'  => [['id' => 9, 'username' => 'Tizio']],
+                            'listino' => $listinoFinto, 'carico' => $caricoFinto,
+                            'ingombro' => 30, 'capienza' => 80,
+                            'deposito' => null, 'inDeposito' => [], 'affitto' => 288000,
+                            'conti' => $contiFinti, 'calore' => 7.0],
+    'gioco/strada (col deposito)' => ['__vista' => 'gioco/strada', 'title' => 'La strada',
+                            'stato' => $statoFermo, 'vicine' => [], 'altri' => [],
+                            'listino' => $listinoFinto, 'carico' => $caricoFinto,
+                            'ingombro' => 30, 'capienza' => 200, 'conti' => $contiFinti,
+                            'affitto' => 288000,
+                            'calore' => 55.0,
+                            'deposito' => ['id' => 1, 'capienza' => 5000, 'pagato_fino_a' => '2026-09-20 10:00:00'],
+                            'inDeposito' => [['bene' => $beneFinto, 'quantita' => 40, 'costo' => 880000,
+                                              'medio' => 22000, 'ingombro' => 120]]],
+    'gioco/strada (piazza morta)' => ['__vista' => 'gioco/strada', 'title' => 'La strada',
+                            'stato' => $statoFermo, 'vicine' => [], 'altri' => [],
+                            'listino' => [], 'carico' => [], 'ingombro' => 0, 'capienza' => 80,
+                            'deposito' => null, 'inDeposito' => [], 'affitto' => 288000,
+                            'conti' => $contiFinti, 'calore' => 0.0],
+    'gioco/strada@viaggio' => null,  // sostituita sotto: stessa vista, stato diverso
+    'profilo/mio'       => ['title' => 'Profilo', 'utente' => $utente, 'notaMax' => 500,
+                            'avatar' => 'img/avatar/x.webp', 'lato' => 320],
+    'profilo/mio (senza foto)' => ['__vista' => 'profilo/mio', 'title' => 'Profilo',
+                            'utente' => $utente, 'notaMax' => 500, 'avatar' => null, 'lato' => 320],
+    'gioco/inizio'      => ['title' => 'Inizio', 'citta' => $citta, 'piazze' => $piazze],
+    'gioco/personaggio' => [
+        'title' => 'Tu', 'p' => $personaggioFinto + ['trattativa' => 42.0, 'fiuto' => 18.0,
+            'sangue_freddo' => 7.0, 'organizzazione' => 22.0, 'credito' => 3.0,
+            'rispetto' => 31.0, 'timore' => 12.0],
+        'uomini' => [['id' => 1, 'nome' => 'Ciro \'o Biondo', 'ruolo' => 'vedetta', 'competenza' => 61,
+                      'lealta' => 72.0, 'stipendio_ora' => 23000, 'piazza_id' => 1, 'piazza' => 'Brera',
+                      'stato' => 'libero']],
+        'tetto' => 3, 'stipendi' => 23000,
+        'corse' => [['corriere' => 'Nino Baffo', 'quantita' => 12, 'bene' => 'Hashish',
+                     'da_piazza' => 'Brera', 'a_piazza' => 'Termini', 'arrivo_at' => '2026-09-19 14:00:00']],
+        'ruoli' => \App\Game\Organico::RUOLI, 'fornitori' => $fornitoriFinti,
+        'carico' => $caricoFinto, 'piazza' => $piazze[1], 'piazze' => $piazze,
+        'ingaggio' => 8, 'inCarcere' => false,
+    ],
+    'gioco/personaggio (nudo)' => [
+        '__vista' => 'gioco/personaggio', 'title' => 'Tu',
+        'p' => $personaggioFinto + ['trattativa' => 0.0, 'fiuto' => 0.0, 'sangue_freddo' => 0.0,
+            'organizzazione' => 0.0, 'credito' => 0.0, 'rispetto' => 0.0, 'timore' => 0.0],
+        'uomini' => [], 'tetto' => 1, 'stipendi' => 0, 'corse' => [],
+        'ruoli' => \App\Game\Organico::RUOLI, 'fornitori' => $fornitoriFinti,
+        'carico' => [], 'piazza' => $piazze[1],
+        'piazze' => $piazze, 'ingaggio' => 8, 'inCarcere' => false,
+    ],
+    'gioco/fascicolo'   => [
+        'title' => 'Fascicolo', 'p' => $personaggioFinto + ['profilo' => 1, 'arresti' => 1, 'pulito' => 5000000],
+        'calore' => 120.0, 'caloreParole' => Calore::aParole(120), 'piazza' => $piazze[1],
+        'calorePiazza' => 30.0, 'rischio' => 0.13, 'rischioBlocco' => 0.0,
+        'fascicolo' => ['id' => 1, 'inquirente' => 'Commissario Rizzo', 'corpo' => 'questura',
+                        'prove' => 62.0, 'aperto_at' => '2026-09-19 08:00:00'],
+        'segnali' => [['fatto_at' => '2026-09-19 09:00:00', 'gravita' => 3, 'testo' => 'Un cliente strano.']],
+        'inCarcere' => false, 'mancano' => 0,
+        'prezzi' => ['avvocato' => 4000000, 'bustarella' => 2500000], 'soglia' => 100,
+    ],
+    'gioco/fascicolo (dentro)' => [
+        '__vista' => 'gioco/fascicolo', 'title' => 'Dentro',
+        'p' => $personaggioFinto + ['profilo' => 2, 'arresti' => 2, 'pulito' => 0],
+        'calore' => 0.0, 'caloreParole' => Calore::aParole(0), 'piazza' => $piazze[1],
+        'calorePiazza' => 0.0, 'rischio' => 0.0, 'rischioBlocco' => 0.0,
+        'fascicolo' => null, 'segnali' => [], 'inCarcere' => true, 'mancano' => 7200,
+        'prezzi' => ['avvocato' => 4000000, 'bustarella' => 2500000], 'soglia' => 100,
+    ],
+    'gioco/affari'      => [
+        'title' => 'Affari', 'p' => $personaggioFinto, 'conti' => $contiFinti,
+        'catalogo' => ['bar' => ['codice' => 'bar', 'nome' => 'Il bar', 'descrizione' => 'x',
+                                 'commissione' => 0.35, 'capacita' => 150000, 'prezzo' => 0],
+                       'autolav' => ['codice' => 'autolav', 'nome' => 'L\'autolavaggio', 'descrizione' => 'y',
+                                 'commissione' => 0.30, 'capacita' => 400000, 'prezzo' => 3000000]],
+        'mezzi' => ['utilitaria' => ['codice' => 'utilitaria', 'nome' => 'Una 127', 'descrizione' => 'z',
+                                     'capienza' => 120, 'prezzo' => 2500000, 'kmh_citta' => 26.0,
+                                     'kmh_paese' => 75.0, 'costo_km' => 45]],
+        'mezzoMio' => null, 'capienza' => 80, 'usato' => 30,
+        'depositi' => [], 'movimenti' => [],
+    ],
+    'gioco/mappa'       => [
+        'title' => 'Mappa', 'stato' => $statoFermo, 'qui' => 1,
+        'cittaJson' => json_encode([['id' => 1, 'codice' => 'MI', 'nome' => 'Milano', 'carattere' => 'consumo',
+                                     'nota' => 'x', 'x' => 1.0, 'y' => 2.0, 'piazze' => 6, 'qui' => true]]),
+        'citta' => $citta,
+        'destinazioni' => [['citta' => $citta[2], 'sbarco' => $piazze[2], 'km' => 596.0, 'opzioni' => $opzioni]],
+    ],
+    'profilo/pubblico'  => ['title' => 'Profilo', 'p' => $utente, 'mio' => false,
+                            'avatar' => 'img/avatar/x.webp'],
+    'profilo/pubblico (senza foto)' => ['__vista' => 'profilo/pubblico', 'title' => 'Profilo',
+                            'p' => $utente, 'mio' => true, 'avatar' => null],
+    'admin/pannello'    => [
+        'title' => 'Amministrazione', 'config' => '/x/config.php', 'db' => true,
+        'migrazioni' => [['version' => '0001_fondamenta', 'applied_at' => '2026-09-19 04:00:00']],
+        'parametri' => ['auth.registration_open' => ['value' => '1', 'type' => 'bool', 'note' => 'Iscrizioni aperte']],
+        'posta' => ['in_coda' => 0, 'inviate_24h' => 3, 'rinunciate' => 0, 'tetto' => 280],
+        'utenti' => ['totale' => 2, 'attivi' => 2, 'attesa' => 0, 'sospesi' => 0],
+        'trasporto' => 'log',
+    ],
+    'admin/utenti'      => ['title' => 'Utenti', 'righe' => [$utente], 'q' => ''],
+    'admin/utente'      => ['title' => 'Utente', 'u' => $utente, 'registro' => [['action' => 'auth.login', 'target_type' => 'user', 'target_id' => 1, 'created_at' => '2026-09-19 05:00:00']]],
+    'admin/posta'       => [
+        'title' => 'Posta', 'stato' => ['in_coda' => 1, 'inviate_24h' => 3, 'rinunciate' => 0, 'tetto' => 280],
+        'righe' => [[
+            'id' => 1, 'destinatario' => 'x@esempio.invalid', 'oggetto' => 'o', 'genere' => 'verifica',
+            'priorita' => 1, 'tentativi' => 0, 'prossimo_at' => '2026-09-19 05:00:00',
+            'inviato_at' => null, 'rinunciato_at' => null, 'ultimo_errore' => null, 'created_at' => '2026-09-19 05:00:00',
+        ]],
+    ],
+    'admin/registro'    => ['title' => 'Registro', 'righe' => [[
+        'id' => 1, 'action' => 'auth.login', 'target_type' => 'user', 'target_id' => 1,
+        'meta' => null, 'created_at' => '2026-09-19 05:00:00', 'username' => 'Mario Rossi',
+    ]]],
+];
+
+// Il layout interroga l'utente collegato: qui non c'è sessione né database,
+// quindi le viste si rendono SENZA layout. Il layout lo prova la e2e, che
+// passa da Apache e ha una sessione vera.
+// La stessa vista nei due stati: è il caso che si rompe più facilmente, perché
+// in viaggio metà dei dati non c'è.
+unset($viste['gioco/strada@viaggio']);
+$viste['gioco/strada (in viaggio)'] = ['__vista' => 'gioco/strada', 'title' => 'In viaggio',
+    'stato' => $statoInViaggio, 'vicine' => [], 'altri' => []];
+
+foreach ($viste as $nome => $dati) {
+    $file = $dati['__vista'] ?? $nome;
+    unset($dati['__vista']);
+    try {
+        $html = View::render($file, $dati, null);
+        prova("vista {$nome}", true, $html !== '' && !str_contains($html, '<?php'));
+    } catch (\Throwable $e) {
+        prova("vista {$nome}", true, $e::class . ': ' . $e->getMessage());
+    }
+}
+
+echo "\n";
+if ($falliti === 0) {
+    printf("\033[0;32mTutte le %d verifiche superate.\033[0m\n", $fatti);
+    exit(0);
+}
+printf("\033[0;31m%d verifiche fallite su %d.\033[0m\n", $falliti, $fatti);
+exit(1);

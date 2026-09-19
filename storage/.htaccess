@@ -1,0 +1,3 @@
+# Rete di sicurezza: se un giorno la conf Apache non fosse caricata,
+# questa directory resta comunque fuori dal web.
+Require all denied
