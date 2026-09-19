@@ -265,6 +265,18 @@ final class SeminaMercato
         );
         $reale = ((float) ($r24['m'] ?? 0)) / 24.0;
 
+        // 2-bis. Quanti stavano davvero lavorando. Senza questo numero la riga
+        //        dell'utilizzo mente: con un giocatore solo il mondo risulta
+        //        sempre «troppo generoso», e non e' un difetto di taratura —
+        //        e' che non c'e' nessuno che estrae. L'utilizzo si legge solo
+        //        sopra una popolazione minima; sotto, quello che si guarda e'
+        //        il reddito PER GIOCATORE, da confrontare con i profili del
+        //        §2.6 (principiante 250 k/ora, medio 1,2 M, maturo 4,5 M).
+        $attivi = (int) (Database::first(
+            'SELECT COUNT(DISTINCT personaggio_id) n FROM transazioni
+              WHERE verso = \'vendita\' AND fatto_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)'
+        )['n'] ?? 0);
+
         // 3. Assorbimento per piazza: la banda di giocabilità 3-30 unità l'ora.
         $fuoriBanda = Database::all(
             'SELECT p.nome piazza, b.nome bene, m.domanda_eq
@@ -282,6 +294,8 @@ final class SeminaMercato
             'reale_ora'   => $reale,
             'vendite_24h' => (int) ($r24['n'] ?? 0),
             'utilizzo'    => $R > 0 ? $reale / $R : 0.0,
+            'attivi_24h'  => $attivi,
+            'per_giocatore' => $attivi > 0 ? $reale / $attivi : 0.0,
             'fuori_banda' => $fuoriBanda,
             'nodi'        => (int) (Database::first('SELECT COUNT(*) n FROM mercati')['n'] ?? 0),
         ];

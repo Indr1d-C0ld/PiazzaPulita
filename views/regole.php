@@ -48,10 +48,15 @@
      incassa una quota su quello che ci trattano gli estranei.</p>
 
   <h2>A che punto è la costruzione</h2>
-  <p>Il gioco si costruisce a fasi. Oggi c'è tutto il giro: il mondo, il mercato
-     condiviso, il denaro sporco e pulito, la legge, il personaggio con i suoi uomini e
-     la rivalità fra giocatori. Manca la rifinitura — obiettivi, classifiche, albo
-     d'oro — e il bilanciamento, che si fa con i giocatori veri e non alla scrivania.</p>
+  <p>Il gioco si costruisce a fasi, e adesso ci sono tutte: il mondo, il mercato
+     condiviso, il denaro sporco e pulito, la legge, il personaggio con i suoi uomini,
+     la rivalità fra giocatori, e la rifinitura — obiettivi, quattro classifiche, albo
+     d'oro, statistiche. Quello che resta è il <strong>bilanciamento</strong>, che si fa
+     con i giocatori veri e non alla scrivania.</p>
+  <p class="minuto">Una nota sulle classifiche: sono quattro perché in un mondo che non
+     riparte mai una sola premierebbe soltanto chi è arrivato per primo. Quella che conta
+     è il <a href="<?= e(url('/classifica?g=reddito')) ?>">reddito degli ultimi trenta
+     giorni</a>: il passato non ci pesa, e si può scalare da chiunque, sempre.</p>
   <ul class="fasi">
     <li class="fatta"><span class="sigla">F0</span><span class="voce">Fondamenta: accesso, profilo, amministrazione</span><span class="esito">fatta</span></li>
     <li class="fatta"><span class="sigla">F1</span><span class="voce">Il mondo: città, piazze, spostamenti in tempo reale</span><span class="esito">fatta</span></li>
@@ -60,7 +65,7 @@
     <li class="fatta"><span class="sigla">F4</span><span class="voce">La legge: calore, controlli, fascicoli</span><span class="esito">fatta</span></li>
     <li class="fatta"><span class="sigla">F5</span><span class="voce">Il personaggio: attributi, reputazione, organico</span><span class="esito">fatta</span></li>
     <li class="fatta"><span class="sigla">F6</span><span class="voce">Il giro degli altri: rivalità, batterie, territorio</span><span class="esito">fatta</span></li>
-    <li><span class="sigla">F7</span><span class="voce">Rifinitura: obiettivi, classifiche, bilanciamento</span><span class="esito">da fare</span></li>
+    <li class="fatta"><span class="sigla">F7</span><span class="voce">Rifinitura: obiettivi, classifiche, albo d'oro, statistiche</span><span class="esito">fatta</span></li>
   </ul>
 
   <h2>Una precisazione</h2>

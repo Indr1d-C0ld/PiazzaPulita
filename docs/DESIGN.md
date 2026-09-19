@@ -723,7 +723,7 @@ gioco.
 | **F4** ✔ | Legge: calore, controlli, posti di blocco, fascicoli, perquisizioni, arresti, carcere, avvocati, corruzione | un giocatore che esagera viene visto, avvisato, e preso — **fatta il 19/09/2026** (i pentiti slittano a F5, con l'organico) |
 | **F5** ✔ | Personaggio: attributi, reputazione a due assi, organico con lealtà, pentiti, corrieri, fornitori | la progressione è leggibile su 20 ore di gioco simulato — **fatta il 19/09/2026** |
 | **F6** ✔ | Multigiocatore: PvP e bottino, pubblico nemico, rapine ai carichi, soffiate, spie, batterie, territorio, cronaca | due account che si fanno la guerra in tutti i modi previsti — **fatta il 19/09/2026** |
-| **F7** | Rifinitura: obiettivi, quattro classifiche, albo d'oro, statistiche, admin completo, PWA, suoni, `balance:report` | un giro di bilanciamento con il rapporto che conferma il tetto di reddito |
+| **F7** ✔ | Rifinitura: obiettivi, quattro classifiche, albo d'oro, statistiche, admin completo, PWA, `balance:report` | un giro di bilanciamento con il rapporto che conferma il tetto di reddito — **fatta il 19/09/2026** |
 
 ---
 
@@ -790,3 +790,55 @@ che si è fatto davvero — e un territorio va **tenuto**, non preso una volta.
 
 **La cronaca**: il notiziario del mondo, uguale per tutti. Senza, metà di quello che
 succede sarebbe invisibile, e un mondo condiviso che non si vede tanto vale non averlo.
+
+---
+
+## 12. F7 — la rifinitura
+
+**Le quattro graduatorie** (§7.1) sono in piedi, e quella preselezionata è il **reddito**
+degli ultimi trenta giorni, non il patrimonio: è l'unica su cui il passato non pesa, e
+quindi l'unica contendibile da chiunque, sempre. La longevità conta i giorni senza arresti
+né ospedale **ma solo sopra profilo criminale 5**: senza quella soglia la vincerebbe chi
+non ha mai fatto niente, che è l'esatto contrario di quello che dovrebbe premiare.
+
+**L'albo d'oro** chiude il discorso dal lato opposto: un primato perso sparisce dalla
+classifica, e senza un albo il tempo passato in cima si cancellerebbe nel momento in cui
+qualcuno ti supera. Ci si entra tenendo una graduatoria per almeno trenta giorni, e il
+**nome ci resta scritto dentro come copia**, perché l'albo deve sopravvivere alla
+cancellazione dell'account — come il registro delle azioni. Il battito guarda i primati a
+ogni giro ma **chiude un regno solo quando il primo cambia davvero**: un primato che cambia
+ogni cinque minuti non è un primato.
+
+**Gli obiettivi** (24, in quattro gruppi) hanno due regole che valgono per tutti:
+
+1. Si sbloccano da **fatti già registrati** — transazioni, movimenti, fascicoli, scheda —
+   e mai da contatori scritti apposta. Se un obiettivo avesse bisogno di un contatore suo,
+   vorrebbe dire che misura qualcosa che il gioco non stava già facendo.
+2. **Non danno vantaggi.** In un mondo a reddito orario finito (§2.6) un premio in denaro
+   lo pagherebbero gli altri giocatori senza saperlo. Sono una traccia, e basta.
+
+Il catalogo sta nel **codice** e non in una tabella: un obiettivo è una condizione, e una
+condizione dentro il database diventa presto una lingua di programmazione scritta male.
+La verifica costa una manciata di aggregati, quindi si fa aprendo la pagina e dal battito
+per chi è stato visto negli ultimi dieci minuti — non a ogni richiesta.
+
+**Le statistiche** leggono tutto dalle righe che il gioco scrive comunque. L'unico numero
+che è anche una prova è l'utilizzo del tetto: sopra il 100 % non è una statistica
+interessante, è un exploit.
+
+**`balance:report` sa contare i giocatori.** Prima diceva sempre «troppo generoso», perché
+con un solo giocatore l'utilizzo è vicino a zero — e non era un difetto di taratura: era
+che non estraeva nessuno. Adesso, sotto tre giocatori attivi, dichiara la riga non
+misurabile e mostra invece il **reddito per giocatore**, da confrontare con i profili del
+§2.6 (250 k / 1,2 M / 4,5 M l'ora). È il numero con cui si fa la taratura vera.
+
+**L'amministrazione** ha la plancia del mondo (piazze, calore, chi le tiene, l'invariante
+del tetto) e quella dei giocatori. Nessuna azione crea denaro: un amministratore che regala
+contanti in un mondo a torta finita li toglie a tutti gli altri senza che nessuno se ne
+accorga. Si ripara, non si premia.
+
+**Installabile (PWA)**, con una scelta dichiarata: **le pagine non si mettono in cache,
+mai**. Lo stato di questo gioco sta sul server ed è autoritativo; una pagina servita dalla
+cache mostrerebbe un mondo che non esiste più, e un listino vecchio di dieci minuti non è
+degradazione elegante — è una bugia su cui qualcuno prende una decisione. Si tiene da parte
+solo l'immutabile (fogli di stile, script, icone) più una pagina che dice che non c'è linea.

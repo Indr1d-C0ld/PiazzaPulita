@@ -20,6 +20,7 @@ use App\Core\Router;
 $router->get('/', [HomeController::class, 'index']);
 $router->get('/health', [HomeController::class, 'health']);
 $router->get('/regole', [HomeController::class, 'regole']);
+$router->get('/manifest.webmanifest', [HomeController::class, 'manifesto']);
 
 // --- Iscrizione e verifica dell'indirizzo ------------------------------------
 $router->get('/iscrizione', [AuthController::class, 'showRegister'], ['guest']);
@@ -91,6 +92,8 @@ $router->get('/profilo/{id}', [ProfiloController::class, 'mostra'], ['active']);
 // --- Classifica e statistiche (pubbliche: sono la vetrina del mondo) ---------
 $router->get('/classifica', [HomeController::class, 'classifica']);
 $router->get('/statistiche', [HomeController::class, 'statistiche']);
+$router->get('/albo', [HomeController::class, 'albo']);
+$router->get('/obiettivi', [HomeController::class, 'obiettivi'], ['active']);
 
 // --- Amministrazione ---------------------------------------------------------
 $router->get('/admin', [AdminController::class, 'pannello'], ['admin']);
@@ -98,6 +101,10 @@ $router->post('/admin/config', [AdminController::class, 'config'], ['admin', 'th
 $router->get('/admin/utenti', [AdminController::class, 'utenti'], ['admin']);
 $router->get('/admin/utente/{id}', [AdminController::class, 'utente'], ['admin']);
 $router->post('/admin/utente', [AdminController::class, 'azioneUtente'], ['admin', 'throttle']);
+$router->get('/admin/mondo', [AdminController::class, 'mondo'], ['admin']);
+$router->post('/admin/mondo', [AdminController::class, 'azioneMondo'], ['admin', 'throttle']);
+$router->get('/admin/giocatori', [AdminController::class, 'giocatori'], ['admin']);
+$router->post('/admin/giocatori', [AdminController::class, 'azioneGiocatore'], ['admin', 'throttle']);
 $router->get('/admin/posta', [AdminController::class, 'posta'], ['admin']);
 $router->post('/admin/posta/smista', [AdminController::class, 'smista'], ['admin', 'throttle']);
 $router->get('/admin/registro', [AdminController::class, 'registro'], ['admin']);

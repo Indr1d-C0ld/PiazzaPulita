@@ -394,11 +394,25 @@ try {
                 : 'entro il tetto');
             out('');
             out('3. UTILIZZO');
-            printf("   %.1f%%  %s\n", $r['utilizzo'] * 100, match (true) {
-                $r['utilizzo'] > 0.60 => 'ostile a chi arriva: il tetto va alzato',
-                $r['utilizzo'] < 0.15 => 'troppo generoso: se dura un mese, va abbassato',
-                default               => 'temperatura giusta',
-            });
+            out('   giocatori che hanno venduto nelle ultime 24 h: ' . $r['attivi_24h']);
+            if ($r['attivi_24h'] < 3) {
+                printf("   %.1f%%  non misurabile: servono almeno tre giocatori attivi\n", $r['utilizzo'] * 100);
+                out('          (con uno solo il mondo risulta sempre «troppo generoso»,');
+                out('           e non e\' un difetto di taratura: e\' che non estrae nessuno)');
+            } else {
+                printf("   %.1f%%  %s\n", $r['utilizzo'] * 100, match (true) {
+                    $r['utilizzo'] > 0.60 => 'ostile a chi arriva: il tetto va alzato',
+                    $r['utilizzo'] < 0.15 => 'troppo generoso: se dura un mese, va abbassato',
+                    default               => 'temperatura giusta',
+                });
+            }
+            if ($r['attivi_24h'] > 0) {
+                out('   per giocatore: ' . lire((int) round($r['per_giocatore'])) . " l'ora  " . match (true) {
+                    $r['per_giocatore'] > 4_500_000 => '(sopra il profilo maturo: abbassare R)',
+                    $r['per_giocatore'] < 150_000   => '(sotto il principiante: alzare R)',
+                    default                         => '(dentro i profili del §2.6)',
+                });
+            }
             out('');
             out('4. BANDA DI GIOCABILITA\' (3-30 unita\' l\'ora per piazza, armi escluse)');
             if ($r['fuori_banda'] === []) {

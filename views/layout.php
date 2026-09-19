@@ -4,7 +4,7 @@ $u = auth_check() ? auth_user() : null;
 $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
 ?>
 <!doctype html>
-<html lang="it"<?= $luce !== 'auto' ? ' data-luce="' . e($luce) . '"' : '' ?>>
+<html lang="it" data-base="<?= e(url('/')) ?>"<?= $luce !== 'auto' ? ' data-luce="' . e($luce) . '"' : '' ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,6 +13,11 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
 <meta name="description" content="Piazza Pulita — gioco di commercio, rischio e territorio nell'Italia degli anni ottanta.">
 <link rel="stylesheet" href="<?= e(asset('css/piazzapulita.css')) ?>">
 <link rel="icon" href="<?= e(asset('img/icona.svg')) ?>" type="image/svg+xml">
+<link rel="apple-touch-icon" href="<?= e(asset('img/icona-192.png')) ?>">
+<link rel="manifest" href="<?= e(url('/manifest.webmanifest')) ?>">
+<meta name="theme-color" content="#1c1a16">
+<meta name="apple-mobile-web-app-title" content="Piazza Pulita">
+<script src="<?= e(asset('js/pwa.js')) ?>" defer></script>
 </head>
 <body>
 
@@ -33,6 +38,7 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
         <a href="<?= e(url('/personaggio')) ?>">Tu</a>
         <a href="<?= e(url('/fascicolo')) ?>">Fascicolo</a>
         <a href="<?= e(url('/profilo')) ?>">Profilo</a>
+        <a href="<?= e(url('/obiettivi')) ?>">Obiettivi</a>
         <a href="<?= e(url('/classifica')) ?>">Classifica</a>
         <?php if (is_admin()): ?><a href="<?= e(url('/admin')) ?>">Amministrazione</a><?php endif; ?>
         <form method="post" action="<?= e(url('/profilo/luce')) ?>" style="display:inline">
@@ -65,7 +71,7 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
 <footer>
   <div class="colophon">
     <span>Piazza Pulita — gioco di finzione. Progetto personale, nessun fine commerciale.</span>
-    <span><a href="<?= e(url('/cronaca')) ?>">Cronaca</a> · <a href="<?= e(url('/statistiche')) ?>">Statistiche</a> · <a href="<?= e(url('/regole')) ?>">Come funziona</a></span>
+    <span><a href="<?= e(url('/cronaca')) ?>">Cronaca</a> · <a href="<?= e(url('/albo')) ?>">Albo d'oro</a> · <a href="<?= e(url('/statistiche')) ?>">Statistiche</a> · <a href="<?= e(url('/regole')) ?>">Come funziona</a></span>
     <span>Ora di Roma: <?= e(fmt_dt(time())) ?></span>
   </div>
 </footer>

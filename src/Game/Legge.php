@@ -395,6 +395,9 @@ final class Legge
             [Clock::perDb(), $ore, Clock::perDb(), $personaggioId]
         );
         Database::run("UPDATE fascicoli SET stato = 'eseguito', chiuso_at = NOW() WHERE id = ?", [$fascicoloId]);
+        // La longevità riparte da adesso: è la graduatoria di chi rischia e non
+        // si fa prendere, e adesso ti hanno preso.
+        Classifica::azzeraLongevita($personaggioId);
 
         // Finire dentro fa due cose alla reputazione: il timore sale — hai
         // retto — e gli uomini si spaventano. Chi era già poco leale parla.

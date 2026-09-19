@@ -27,6 +27,8 @@ use App\Sim\Geo;
 use App\Sim\Calore;
 use App\Sim\Crescita;
 use App\Sim\Scontro;
+use App\Game\Classifica;
+use App\Game\Obiettivi;
 use App\Sim\Denaro;
 use App\Sim\Mercato;
 use App\Sim\Prezzi;
@@ -412,6 +414,66 @@ prova('sopra soglia si prende tutto', 900_000, Scontro::bottino(400_000, 500_000
 prova('la soglia è compresa',         500_000, Scontro::bottino(500_000, 0, 500_000));
 prova('chi non ha niente non perde niente', 0, Scontro::bottino(0, 0, 500_000));
 
+echo "\nObiettivi — il catalogo si regge in piedi\n";
+// Le condizioni sono chiusure che leggono un vettore di fatti: se qualcuno
+// scrive male il nome di un fatto, il gioco non se ne accorge finché un
+// giocatore non arriva a quell'obiettivo. Qui si valutano TUTTE contro due
+// mondi costruiti apposta — uno a zero e uno al massimo — e si pretende che
+// nessuno si sblocchi nel primo e tutti nel secondo.
+$catalogo = Obiettivi::catalogo();
+prova('il catalogo non è vuoto', true, count($catalogo) >= 20);
+$gruppi = array_unique(array_column($catalogo, 'gruppo'));
+prova('i gruppi sono quattro', 4, count($gruppi));
+prova('i codici sono tutti diversi', count($catalogo), count(array_unique(array_keys($catalogo))));
+
+$vuoto = [
+    'operazioni' => 0, 'vendite' => 0, 'margine_max' => 0, 'beni_trattati' => 0, 'beni_totali' => 10,
+    'citta_lavorate' => 0, 'citta_totali' => 9, 'pulito' => 0, 'debito' => 0, 'prestiti' => 0,
+    'lavato' => 0, 'mezzo' => '', 'depositi' => 0, 'segnali' => 0, 'archiviati' => 0, 'arresti' => 0,
+    'in_carcere' => false, 'profilo' => 0, 'rispetto' => 0.0, 'giorni_pulito' => 0, 'vinti' => 0,
+    'spie' => 0, 'batteria' => 0, 'territori' => 0, 'uomini' => 0, 'uomini_fedeli' => 0,
+];
+$pieno = [
+    'operazioni' => 500, 'vendite' => 300, 'margine_max' => 90_000_000, 'beni_trattati' => 10,
+    'beni_totali' => 10, 'citta_lavorate' => 9, 'citta_totali' => 9, 'pulito' => 900_000_000,
+    'debito' => 0, 'prestiti' => 3, 'lavato' => 400_000_000, 'mezzo' => 'furgone', 'depositi' => 7,
+    'segnali' => 12, 'archiviati' => 2, 'arresti' => 4, 'in_carcere' => false, 'profilo' => 40,
+    'rispetto' => 88.0, 'giorni_pulito' => 120, 'vinti' => 9, 'spie' => 2, 'batteria' => 1,
+    'territori' => 6, 'uomini' => 6, 'uomini_fedeli' => 6,
+];
+$sbloccatiAZero = []; $mancantiAlMassimo = [];
+foreach ($catalogo as $cod => $o) {
+    if (($o['cond'])($vuoto))   { $sbloccatiAZero[] = $cod; }
+    if (!($o['cond'])($pieno))  { $mancantiAlMassimo[] = $cod; }
+}
+prova('appena nati non si è raggiunto niente', [], $sbloccatiAZero);
+prova('al massimo si raggiunge tutto',         [], $mancantiAlMassimo);
+
+// Qualche condizione letta una per una, perché «tutti veri» nasconde gli
+// scambi fra due obiettivi vicini.
+prova('al primo affare basta una vendita', true, ($catalogo['primo_affare']['cond'])(['vendite' => 1] + $vuoto));
+prova('senza prestiti non sei «senza debiti»', false, ($catalogo['senza_debiti']['cond'])($vuoto));
+prova('con un prestito restituito sì',      true, ($catalogo['senza_debiti']['cond'])(['prestiti' => 1] + $vuoto));
+prova('l\'incensurato vuole ANCHE il profilo', false,
+    ($catalogo['incensurato']['cond'])(['giorni_pulito' => 99] + $vuoto));
+prova('e con il profilo alto sì',           true,
+    ($catalogo['incensurato']['cond'])(['giorni_pulito' => 99, 'profilo' => 7] + $vuoto));
+prova('«nessuno parla» vuole tutti fedeli', false,
+    ($catalogo['nessuno_parla']['cond'])(['uomini' => 4, 'uomini_fedeli' => 3] + $vuoto));
+
+echo "\nClassifica — le quattro graduatorie\n";
+prova('le graduatorie sono quattro', 4, count(Classifica::GRADUATORIE));
+prova('ognuna ha nome, unità e nota', true, (static function (): bool {
+    foreach (Classifica::GRADUATORIE as $g) {
+        if (($g['nome'] ?? '') === '' || ($g['unita'] ?? '') === '' || ($g['nota'] ?? '') === '') {
+            return false;
+        }
+    }
+    return true;
+})());
+prova('il reddito è fra quelle previste', true, isset(Classifica::GRADUATORIE['reddito']));
+prova('una graduatoria inventata non esiste', false, isset(Classifica::GRADUATORIE['simpatia']));
+
 echo "\nRendering di tutte le viste\n";
 
 $utente = [
@@ -472,11 +534,56 @@ $listinoFinto = [[
 ]];
 $caricoFinto = [['bene' => $beneFinto, 'quantita' => 10, 'costo' => 220000, 'medio' => 22000, 'ingombro' => 30]];
 
+$statMondo = [
+    'iscritti' => 4, 'personaggi' => 3, 'visti24' => 2, 'citta' => 9, 'piazze' => 51, 'nodi' => 273,
+    'scambi24' => 120, 'volume24' => 400_000_000, 'estratto24' => 60_000_000, 'attivi24' => 2,
+    'tetto' => 24_000_000, 'utilizzo' => 0.104, 'pulito' => 90_000_000, 'debiti' => 4_500_000,
+    'in_carcere' => 1, 'ricoverati' => 0, 'fascicoli' => 2, 'arresti30' => 1, 'scontri30' => 5,
+    'batterie' => 2, 'tenute' => 3,
+    'merci' => [['nome' => 'Fumo', 'scambi' => 40, 'volume' => 120_000_000]],
+    'piazze_calde' => [['piazza' => 'Lambrate', 'citta' => 'Milano', 'calore' => 44.0]],
+];
+
 $viste = [
     'home'              => ['title' => 'Piazza Pulita', 'iscritti' => 2],
     'regole'            => ['title' => 'Come funziona'],
-    'classifica'        => ['title' => 'Classifica', 'righe' => [$utente]],
-    'statistiche'       => ['title' => 'Statistiche', 'dati' => ['Iscritti' => 2, 'Primo' => 'Tizio (01/01/1984)']],
+    'classifica'        => ['title' => 'Classifica', 'graduatoria' => 'reddito',
+                            'graduatorie' => Classifica::GRADUATORIE, 'giorni' => 30,
+                            'righe' => [['id' => 9, 'username' => 'Tizio', 'valore' => 4_200_000]],
+                            'primati' => ['reddito' => ['graduatoria' => 'reddito', 'personaggio_id' => 9,
+                                          'username' => 'Tizio', 'valore' => 4_200_000,
+                                          'dal' => '2026-08-20 10:00:00', 'agg_a' => '2026-09-19 10:00:00']]],
+    'classifica (territorio, vuota)' => ['__vista' => 'classifica', 'title' => 'Classifica',
+                            'graduatoria' => 'territorio', 'graduatorie' => Classifica::GRADUATORIE,
+                            'giorni' => 30, 'righe' => [], 'primati' => []],
+    'classifica (longevità)' => ['__vista' => 'classifica', 'title' => 'Classifica',
+                            'graduatoria' => 'longevita', 'graduatorie' => Classifica::GRADUATORIE,
+                            'giorni' => 30, 'primati' => [],
+                            'righe' => [['id' => 9, 'username' => 'Tizio', 'valore' => 46, 'profilo' => 12]]],
+    'albo'              => ['title' => 'Albo d\'oro', 'graduatorie' => Classifica::GRADUATORIE,
+                            'minimi' => 30,
+                            'primati' => ['patrimonio' => ['graduatoria' => 'patrimonio', 'personaggio_id' => 9,
+                                           'username' => 'Tizio', 'dal' => '2026-08-20 10:00:00']],
+                            'righe' => [['id' => 1, 'graduatoria' => 'reddito', 'personaggio_id' => 9,
+                                         'nome' => 'Tizio', 'valore' => 9_000_000, 'dal' => '2026-07-01 10:00:00',
+                                         'al' => '2026-08-20 10:00:00', 'giorni' => 50]]],
+    'albo (vuoto)'      => ['__vista' => 'albo', 'title' => 'Albo d\'oro',
+                            'graduatorie' => Classifica::GRADUATORIE, 'minimi' => 30,
+                            'primati' => [], 'righe' => []],
+    'obiettivi'         => ['title' => 'Obiettivi', 'catalogo' => Obiettivi::catalogo(),
+                            'sbloccati' => ['primo_affare' => '2026-09-18 12:00:00'],
+                            'diffusione' => ['primo_affare' => 3, 'colpo_grosso' => 1],
+                            'giocatori' => 4, 'nuovi' => ['primo_affare']],
+    'obiettivi (nessuno)' => ['__vista' => 'obiettivi', 'title' => 'Obiettivi',
+                            'catalogo' => Obiettivi::catalogo(), 'sbloccati' => [],
+                            'diffusione' => [], 'giocatori' => 1, 'nuovi' => []],
+    'statistiche'       => ['title' => 'Statistiche', 'primo' => 'Tizio (01/01/1984)', 'mio' => null,
+                            'm' => $statMondo],
+    'statistiche (con i miei)' => ['__vista' => 'statistiche', 'title' => 'Statistiche',
+                            'primo' => 'Tizio (01/01/1984)', 'm' => $statMondo,
+                            'mio' => ['operazioni' => 40, 'guadagno' => 12_000_000, 'migliore' => 900_000,
+                                      'beni' => 6, 'piazze' => 9, 'reddito30' => 8_000_000, 'arresti' => 1,
+                                      'profilo' => 3, 'vinti' => 2, 'persi' => 1, 'obiettivi' => 7]],
     'auth/register'     => ['title' => 'Iscrizione', 'open' => true, 'minPassword' => 9],
     'auth/login'        => ['title' => 'Accesso'],
     'auth/verify_sent'  => ['title' => 'Conferma', 'email' => 'x@esempio.invalid'],
@@ -629,6 +736,30 @@ $viste = [
         'membri' => [['id' => 1, 'username' => 'Mario Rossi', 'pulito' => 0, 'rispetto' => 20.0, 'timore' => 5.0]],
         'territori' => [['piazza' => 'Lambrate', 'citta' => 'Milano', 'presenza' => 412.5, 'dal' => '2026-09-18 10:00:00']],
         'sonoCapo' => true, 'fondazione' => 10_000_000, 'pizzo' => 0.04, 'elenco' => []],
+    'admin/mondo'       => ['title' => 'Il mondo', 'citta' => $citta,
+                            'bilancio' => ['tetto' => 24_000_000.0, 'teorico' => 24_100_000.0,
+                                           'scarto' => 0.004, 'per_fascia' => ['bassa' => 6_000_000.0],
+                                           'reale_ora' => 1_200_000.0, 'vendite_24h' => 42,
+                                           'utilizzo' => 0.05, 'attivi_24h' => 1, 'per_giocatore' => 1_200_000.0,
+                                           'fuori_banda' => [], 'nodi' => 273],
+                            'piazze' => [['id' => 1, 'nome' => 'Lambrate', 'tipo' => 'popolare', 'polizia' => 40,
+                                          'calore' => 12.5, 'citta' => 'Milano', 'padrone' => 'TRP',
+                                          'gente' => 2, 'nodi' => 6]]],
+    'admin/mondo (tre attivi)' => ['__vista' => 'admin/mondo', 'title' => 'Il mondo', 'citta' => $citta,
+                            'bilancio' => ['tetto' => 24_000_000.0, 'teorico' => 24_100_000.0,
+                                           'scarto' => 0.09, 'per_fascia' => [],
+                                           'reale_ora' => 30_000_000.0, 'vendite_24h' => 900,
+                                           'utilizzo' => 1.25, 'attivi_24h' => 7, 'per_giocatore' => 4_200_000.0,
+                                           'fuori_banda' => [['piazza' => 'x', 'bene' => 'y', 'domanda_eq' => 1.0]],
+                                           'nodi' => 273],
+                            'piazze' => []],
+    'admin/giocatori'   => ['title' => 'I giocatori', 'righe' => [[
+                            'id' => 9, 'username' => 'Tizio', 'status' => 'active', 'piazza' => 'Lambrate',
+                            'citta' => 'Milano', 'batteria' => 'TRP', 'arrivo_at' => null,
+                            'contante' => 3_000_000, 'pulito' => 12_000_000, 'debito' => 1_500_000,
+                            'calore' => 88.5, 'profilo' => 4, 'carcere_fino_a' => null,
+                            'ospedale_fino_a' => '2026-09-19 20:00:00', 'fascicoli' => 1]]],
+    'admin/giocatori (mondo vuoto)' => ['__vista' => 'admin/giocatori', 'title' => 'I giocatori', 'righe' => []],
     'admin/utenti'      => ['title' => 'Utenti', 'righe' => [$utente], 'q' => ''],
     'admin/utente'      => ['title' => 'Utente', 'u' => $utente, 'registro' => [['action' => 'auth.login', 'target_type' => 'user', 'target_id' => 1, 'created_at' => '2026-09-19 05:00:00']]],
     'admin/posta'       => [

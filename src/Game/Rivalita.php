@@ -127,9 +127,11 @@ final class Rivalita
         if ($esito === 'vinto') {
             Database::run('UPDATE personaggi SET ospedale_fino_a = DATE_ADD(?, INTERVAL ? HOUR) WHERE id = ?',
                 [Clock::perDb(), $ospedaleOre, $difensoreId]);
+            Classifica::azzeraLongevita($difensoreId);
         } elseif ($esito === 'perso') {
             Database::run('UPDATE personaggi SET ospedale_fino_a = DATE_ADD(?, INTERVAL ? HOUR), salute = 100 WHERE id = ?',
                 [Clock::perDb(), $ospedaleOre, $attaccanteId]);
+            Classifica::azzeraLongevita($attaccanteId);
         }
 
         // Il conto: calore, profilo criminale permanente, timore.

@@ -198,6 +198,57 @@ table.tabella .num { text-align: right; font-family: var(--mono); font-variant-n
 
 .azioni { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; margin-top: 1.2rem; }
 
+/* Modulo compatto: l'etichetta sopra il campo, senza il contenitore .campo.
+   Serve ai riquadri stretti, dove una griglia di .campo sprecherebbe mezza
+   pagina per tre caselle. */
+.modulo label {
+  display: block; margin-bottom: .7rem;
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--inchiostro-3);
+}
+.modulo input, .modulo select, .modulo textarea {
+  display: block; width: 100%; margin-top: .25rem; padding: .5rem .65rem;
+  background: var(--carta); color: var(--inchiostro);
+  border: 1px solid var(--riga-2); border-radius: var(--raggio);
+  font: .95rem/1.4 var(--sans); text-transform: none; letter-spacing: normal;
+}
+.modulo input:focus, .modulo select:focus {
+  outline: 2px solid var(--rosso); outline-offset: 1px; border-color: var(--rosso);
+}
+.bottoniera { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .9rem; }
+
+/* Linguette: le quattro graduatorie, e l'albo d'oro accanto. */
+.linguette {
+  display: flex; gap: .2rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--riga-2); margin: 1.2rem 0 1rem;
+}
+.linguette a {
+  border: 1px solid transparent; border-bottom: 0; padding: .45rem .9rem;
+  font-size: .74rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--inchiostro-3); border-radius: var(--raggio) var(--raggio) 0 0;
+  margin-bottom: -1px;
+}
+.linguette a:hover { color: var(--rosso); background: var(--carta-3); }
+.linguette a.attiva {
+  color: var(--inchiostro); background: var(--carta);
+  border-color: var(--riga-2); border-bottom-color: var(--carta);
+  font-weight: 700;
+}
+
+/* Gli obiettivi: una scheda per ciascuno, spenta finché non è tuo. */
+.traguardi { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.traguardo {
+  border: 1px solid var(--riga); border-left: 3px solid var(--riga-2);
+  border-radius: var(--raggio); padding: .6rem .8rem; background: var(--carta-2);
+  opacity: .55;
+}
+.traguardo--fatto { opacity: 1; border-left-color: var(--verde); background: var(--carta); }
+.traguardo--raro  { border-left-color: var(--ambra); }
+.traguardo--fatto.traguardo--raro { border-left-color: var(--ambra); }
+.traguardo b { display: block; font-family: var(--serif); font-size: 1.02rem; }
+.traguardo p { margin: .25rem 0 0; font-size: .8rem; color: var(--inchiostro-3); }
+.traguardo .quando { font-size: .7rem; color: var(--verde); letter-spacing: .04em; }
+
 button, .bottone {
   display: inline-block; cursor: pointer;
   font: 700 .8rem/1 var(--sans); text-transform: uppercase; letter-spacing: .1em;

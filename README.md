@@ -67,8 +67,19 @@ si conquista premendo un pulsante: si tiene lavorandoci, decade in tre giorni, e
 comanda incassa il 4 % su quello che ci trattano gli altri. E la **cronaca**, il notiziario
 del mondo, uguale per tutti.
 
-Prossima: **F7 — rifinitura** (obiettivi, classifiche, albo d'oro, statistiche, admin
-completo, PWA, bilanciamento).
+**F7 — La rifinitura: fatta.** Quattro graduatorie invece di una — patrimonio,
+territorio, **reddito degli ultimi trenta giorni** (quella che conta: il passato non ci
+pesa) e longevità, che premia chi rischia e non si fa prendere. Un **albo d'oro** per chi
+tiene un primato almeno un mese, con il nome copiato dentro perché sopravviva alla
+cancellazione dell'account. **Ventiquattro obiettivi** che si sbloccano da fatti già
+registrati e non danno nessun vantaggio: in un mondo a reddito finito, un premio in denaro
+lo pagherebbero gli altri. **Statistiche** vere del mondo e tue, **amministrazione** di
+piazze e giocatori (dove non si regala niente: si ripara), `balance:report` che adesso sa
+contare i giocatori attivi invece di gridare al lupo con un mondo vuoto, e l'app
+**installabile** — che apposta non mette in cache nessuna pagina.
+
+Il gioco è completo. Quello che resta è il bilanciamento con giocatori veri, che non si fa
+alla scrivania.
 
 ## Installazione
 
@@ -102,7 +113,7 @@ perché `logger()` ripiega sul syslog e non si lamenta.
 ## Prove
 
 ```bash
-php tests/test_unita.php    # 211 verifiche: formato, geografia, viaggi, mercato, denaro, scontro, viste
+php tests/test_unita.php    # 237 verifiche: formato, geografia, mercato, denaro, scontro, obiettivi, viste
 bash tests/e2e_auth.sh      # iscrizione, conferma, accesso, profilo — attraverso Apache
 bash tests/e2e_mondo.sh     # nascita, viaggi, arrivi, rifiuti — attraverso Apache
 bash tests/e2e_mercato.sh   # compravendita, impatto, fotografia del profilo
@@ -110,6 +121,7 @@ bash tests/e2e_affari.sh    # riciclaggio, usuraio, mezzi, depositi — il ciclo
 bash tests/e2e_legge.sh     # calore, fascicolo, blitz, carcere, difesa
 bash tests/e2e_organico.sh  # attributi, uomini, corrieri, pentiti, fornitori
 bash tests/e2e_rivalita.sh  # due giocatori veri: botte, bottino, spie, batterie, pizzo
+bash tests/e2e_rifinitura.sh # obiettivi, graduatorie, albo d'oro, admin, installabilità
 
 php bin/console.php balance:report        # l'invariante del tetto, come prova
 php bin/_simula_principiante.php 12 NA    # un principiante contro il motore vero

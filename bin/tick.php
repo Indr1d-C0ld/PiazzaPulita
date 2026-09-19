@@ -28,7 +28,9 @@ use App\Game\Legge;
 use App\Game\Listino;
 use App\Game\Logistica;
 use App\Game\Batteria;
+use App\Game\Classifica;
 use App\Game\Cronaca;
+use App\Game\Obiettivi;
 use App\Game\Organico;
 use App\Game\Rivalita;
 use App\Game\Personaggio;
@@ -89,6 +91,26 @@ try {
     $lavori['dimessi']   = $fase('dimessi', static fn() => Rivalita::dimetti(), 0);
     $lavori['spie']      = $fase('spie', static fn() => Rivalita::spieScoperte(), ['scoperte' => 0]);
     $lavori['territori'] = $fase('territori', static fn() => Batteria::aggiornaTerritori(), ['cambi' => 0]);
+
+    // I primati: chi tiene una graduatoria, e da quanto. Si guarda a ogni
+    // battito ma si CHIUDE un regno solo quando il primo cambia davvero — un
+    // primato che cambia ogni cinque minuti non e' un primato.
+    $lavori['primati'] = $fase('primati', static fn() => Classifica::aggiornaPrimati(),
+                               ['cambi' => 0, 'iscritti' => 0]);
+
+    // Gli obiettivi di chi e' stato visto da poco. Cosi' si sbloccano da soli
+    // senza che nessuno debba passare dalla pagina apposta, e senza far pagare
+    // una manciata di aggregati a OGNI richiesta di OGNI giocatore.
+    $lavori['obiettivi'] = $fase('obiettivi', static function (): int {
+        $n = 0;
+        foreach (Database::all(
+            "SELECT p.id FROM personaggi p JOIN users u ON u.id = p.user_id
+              WHERE u.status = 'active' AND u.last_seen_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+              LIMIT 50") as $r) {
+            $n += count(Obiettivi::verifica((int) $r['id']));
+        }
+        return $n;
+    }, 0);
     $lavori['posta'] = $fase('posta', static fn() => Posta::smista(), ['tentati' => 0, 'inviati' => 0, 'rinunciati' => 0]);
     $lavori['freni'] = $fase('freni', static fn() => RateLimiter::gc(), 0);
 

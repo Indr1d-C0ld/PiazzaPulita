@@ -112,9 +112,10 @@ final class Personaggio
         $tetto    = (int) round($debito * (float) GameConfig::get('denaro.tetto_debito', 3.0));
 
         Database::run(
-            'INSERT INTO personaggi (user_id, piazza_id, contante, capienza, debito, debito_tetto, debito_agg_a)
-             VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$userId, (int) $piazza['id'], $contante, Logistica::CAPIENZA_BASE, $debito, $tetto, Clock::perDb()]
+            'INSERT INTO personaggi (user_id, piazza_id, contante, capienza, debito, debito_tetto, debito_agg_a, pulito_dal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$userId, (int) $piazza['id'], $contante, Logistica::CAPIENZA_BASE, $debito, $tetto, Clock::perDb(),
+             Clock::adesso()->format('Y-m-d H:i:s')]
         );
         $nuovoId = Database::lastInsertId();
 
