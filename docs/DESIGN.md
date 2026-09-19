@@ -424,16 +424,49 @@ del principiante su un mondo che respira da 96 ore):
 | **`R = 16 M`, banda 2** | **273** | **584 k** | **214 k** | **0** |
 | `R = 10 M`, banda 1 | 327 | 411 k | −1 k | 3 su 9 |
 
-**Quello che resta aperto, e che R non può risolvere.** La mediana non arriva a 250.000 e
-non ci può arrivare abbassando il tetto, perché **il reddito del principiante dipende dalla
-città molto più che da R**: nella stessa taratura Roma dà 1,55 milioni l'ora e Catania
-214.000, sette volte meno. Un taglio abbastanza profondo da portare Roma sul bersaglio
-ammazza Bari, Palermo e Bologna — a `R = 10 M` tre città su nove diventano invivibili per
-chi comincia. La leva per quello è la **composizione delle piazze** di ogni città (§1), la
-stessa cosa che in F2 aveva già costretto a dare uno sbocco a ognuna: qui serve un secondo
-giro, più fine, sul contrasto interno fra piazza-fonte e piazza-sbocco.
+**La mediana non arriva a 250.000 e non ci può arrivare abbassando il tetto**, perché il
+reddito della prima ora dipende dalla città molto più che da R: nella stessa taratura Roma
+dà 1,55 milioni l'ora e Catania 214.000, sette volte meno. Un taglio abbastanza profondo da
+portare Roma sul bersaglio ammazza Bari, Palermo e Bologna — a `R = 10 M` tre città su
+nove diventano invivibili per chi comincia.
 
-Nota di metodo: il bersaglio delle 250.000 lire l'ora descrive **la prima ora**, quando il
+#### 2.6.2 La dispersione fra città: guardata, e lasciata stare
+
+Sembrava la questione aperta da risolvere subito. **Non lo era**, e la misura lo dice: i
+sette volte sono un fenomeno **della prima ora**, e si chiudono da soli col procedere della
+partita.
+
+| ore giocate | Roma | Milano | Catania |
+|---|---|---|---|
+| 1 | 1.541.525 | 609.181 | 202.240 |
+| 3 | 1.402.256 | 736.162 | 556.904 |
+| 6 | 1.000.844 | 920.841 | 855.505 |
+| 12 | **764.911** | **793.692** | **714.786** |
+
+Su dodici ore la forbice fra tutte e nove le città scende a **2,3 volte**, con otto su nove
+strette fra 680.000 e 795.000 lire l'ora. E conta *come* converge: Roma **scende** mentre
+il giocatore le consuma l'assorbimento, Catania **sale** mentre impara a uscire dalla
+città. Non è una toppa — è la torta finita e il mercato condiviso del §0.1a che fanno
+esattamente quello per cui esistono. La geografia è già uniforme (quattro piazze-fonte e
+uno sbocco quasi ovunque; due sbocchi e una piazza in più solo a Milano, Napoli e Roma, che
+sono le grandi), e `/inizio` dichiara già carattere, piazze e polizia di ogni città, quindi
+la scelta iniziale non è cieca.
+
+**Nota di metodo, che vale per tutti i numeri di questa sezione.** Il simulatore del
+principiante è **deterministico**: tre esecuzioni sulla stessa città danno lo stesso
+risultato alla lira. Quindi ogni cifra qui sopra — ritaratura a 16 milioni compresa — è *una
+traiettoria di una sola strategia avida contro un solo stato del mercato*: un campione del
+pavimento, non una distribuzione. Si vede dov'è il limite guardando Palermo, che a sei ore
+fa 96.754 lire contro le 843.946 di Catania pur avendo la stessa identica composizione:
+con lo strumento di adesso non si distingue una vera stranezza di quella città da una
+traiettoria che imbocca male. Il lavoro che renderebbe affidabile ogni taratura futura non
+è sulla geografia: è **far misurare allo strumento una distribuzione** — più strategie e
+più stati di mercato — invece di un numero solo.
+
+E resta valido quello che il §9 dice da sempre: il bilanciamento vero si fa con i giocatori
+veri. Tutto il resto si misura contro un giocatore finto.
+
+Nota finale: il bersaglio delle 250.000 lire l'ora descrive **la prima ora**, quando il
 giocatore è legato al capitale (300.000 lire). Passata quella, il vincolo cambia e il
 reddito sale da solo: è la progressione, non uno sbilanciamento.
 ### 2.7 L'informazione
@@ -779,6 +812,11 @@ gioco.
 3. ~~Il tetto di reddito orario del mondo.~~ **Calibrato il 19/09/2026 a 24 milioni**
    (§2.6), **ritarato lo stesso giorno a 16 milioni** dopo la correzione del generatore
    pseudocasuale (§2.6.1). Da riverificare con giocatori veri.
+5. ~~La dispersione del reddito fra le città.~~ **Guardata il 19/09/2026 e lasciata
+   stare** (§2.6.2): la forbice è un fenomeno della prima ora e si chiude da sola in una
+   sessione (2,3× su dodici ore). Quello che resta da fare non è sulla geografia ma sullo
+   **strumento di misura**, che oggi restituisce una traiettoria deterministica invece di
+   una distribuzione.
 4. ~~Protezione dei nuovi arrivati.~~ **Decisa il 19/09/2026 con F6: la soglia di
    bottino, senza immunità.** Sotto `pvp.bottino_minimo` (mezzo milione fra contante e
    merce addosso) **non si prende niente a nessuno**: la vittima non perde una lira e
