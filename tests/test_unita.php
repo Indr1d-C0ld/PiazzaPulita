@@ -141,6 +141,37 @@ prova('dado sempre fra 1 e 6',        false, $male);
 prova('etichette diverse, semi diversi', true,
     Rng::da(1, 'milano')->successivo() !== Rng::da(1, 'napoli')->successivo());
 
+// LA PRIMA MANO DOPO LA SEMINA.
+//
+// Questa è la verifica che mancava, ed è costata cara: la sequenza lunga di un
+// solo generatore era ottima — la provano le righe qui sopra — ma mezzo gioco
+// non usa sequenze lunghe. Semina un generatore e ne prende UN numero: il
+// carico di quell'ora, il rumore del prezzo a quel passo. Quella è sempre e
+// solo la prima mano, e la prima mano da un seme stretto aveva media 0,125 e
+// non superava MAI 0,25. Risultato: i carichi arrivavano quattro volte più
+// spesso del previsto e la giacenza a riposo stava a quattro volte
+// l'equilibrio invece che a 1,7.
+$prime = []; $sopraTreQuarti = 0; $sottoUnOttavo = 0; $somma = 0.0;
+for ($i = 0; $i < 20000; $i++) {
+    $v = Rng::da(12345, "carico:7:3:{$i}")->reale();
+    $prime[] = $v; $somma += $v;
+    if ($v > 0.75)  { $sopraTreQuarti++; }
+    if ($v < 0.125) { $sottoUnOttavo++; }
+}
+prova('la prima mano ha media un mezzo',   true, abs($somma / 20000 - 0.5) < 0.02);
+prova('e arriva davvero in cima',          true, $sopraTreQuarti > 20000 * 0.22);
+prova('e davvero in fondo',                true, $sottoUnOttavo  > 20000 * 0.10);
+prova('e copre tutta la banda',            true, max($prime) > 0.99 && min($prime) < 0.01);
+// La stessa cosa con semi consecutivi, che è il caso dei passi del prezzo.
+$s2 = 0.0; $alti = 0;
+for ($i = 0; $i < 20000; $i++) {
+    $v = (new Rng(1000 + $i))->reale();
+    $s2 += $v;
+    if ($v > 0.5) { $alti++; }
+}
+prova('vale anche per semi consecutivi',   true, abs($s2 / 20000 - 0.5) < 0.02);
+prova('e non pendono da una parte',        true, abs($alti / 20000 - 0.5) < 0.02);
+
 echo "\nOrologio\n";
 Clock::fissa(new DateTimeImmutable('1985-06-12 14:30:00'));
 prova('orologio fissabile',    '1985-06-12 14:30:00.000', Clock::perDb());

@@ -49,7 +49,33 @@ $capitaleIniziale = App\Core\GameConfig::int('mondo.contante_iniziale', 2_000_00
 $contante = $capitaleIniziale;
 $capienza = 80;
 $carico   = [];           // bene_id => [q, costo]
-$partenza = new DateTimeImmutable('2026-09-19 08:00:00');
+// Si parte da ADESSO, non da una data scritta a mano: il mercato si proietta
+// in avanti a partire dal suo `agg_a`, e se l'orologio della simulazione sta
+// nel passato la proiezione non avanza di un secondo. Il risultato è un mercato
+// congelato, senza carichi e senza occasioni — e la simulazione riporta zero
+// affari senza che ci sia niente di rotto.
+$partenza = new DateTimeImmutable('now');
+
+// LO STATO DEL MERCATO SI RIMETTE A POSTO ALLA FINE.
+//
+// Questo strumento non è una simulazione ombra fino in fondo: gli ordini li
+// scrive davvero sul mercato, perché è l'impatto sui prezzi a rendere onesta la
+// misura. Il guaio è che li scrive con l'orologio della simulazione, che corre
+// avanti di ore: alla fine quei nodi hanno un `agg_a` NEL FUTURO, la proiezione
+// calcola un intervallo negativo e il mercato resta congelato finché il tempo
+// vero non lo raggiunge. Si vedeva solo rilanciando la misura: il rendimento
+// calava a ogni giro, e sembrava il gioco a peggiorare.
+$istantanea = Database::all('SELECT piazza_id, bene_id, offerta, domanda, shock, agg_a FROM mercati');
+register_shutdown_function(static function () use ($istantanea): void {
+    foreach ($istantanea as $r) {
+        Database::run(
+            'UPDATE mercati SET offerta = ?, domanda = ?, shock = ?, agg_a = ?
+              WHERE piazza_id = ? AND bene_id = ?',
+            [$r['offerta'], $r['domanda'], $r['shock'], $r['agg_a'],
+             (int) $r['piazza_id'], (int) $r['bene_id']]
+        );
+    }
+});
 Clock::fissa($partenza);
 $fine = $partenza->modify('+' . (int) ($oreDaGiocare * 60) . ' minutes');
 

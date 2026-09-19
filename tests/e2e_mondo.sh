@@ -127,6 +127,13 @@ grep -q "In viaggio verso" <<< "${PAGINA}" \
   || verifica "partenza accettata" "si" "no"
 verifica "biglietto pagato"   "$((CAPITALE - 600))" "$(dbq "SELECT contante FROM personaggi WHERE id=${PID}")"
 verifica "spostamento a diario" "1" "$(dbq "SELECT COUNT(*) FROM spostamenti WHERE personaggio_id=${PID}")"
+# Il biglietto deve lasciare una riga nel REGISTRO, non solo nel diario dei
+# viaggi: senza, il contante cala e il registro non lo spiega, e chi prova a far
+# tornare i conti trova un buco che vale esattamente i viaggi fatti. E' successo:
+# scoperto facendo giocare dodici personaggi e chiedendo che le casse tornassero
+# alla lira.
+verifica "e il biglietto e' nel registro" "600" \
+  "$(dbq "SELECT COALESCE(-SUM(importo),0) FROM movimenti WHERE personaggio_id=${PID} AND genere='viaggio'")"
 
 # Partire due volte non si può.
 TOK=$(c "${BASE_URL}/strada" | token_da)

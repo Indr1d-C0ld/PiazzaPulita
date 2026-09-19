@@ -23,7 +23,13 @@ if ($u !== null) {
 }
 
 // Gli utenti di prova sbagliati di proposito lasciano righe anche senza account.
-Database::run("DELETE FROM users WHERE username LIKE 'prova %' AND email LIKE '%@esempio.invalid'");
+//
+// La scopa passa solo su quello che ha piu' di un'ora: senza il limite di
+// tempo, due prove lanciate insieme si cancellano a vicenda i personaggi a
+// meta' corsa, e il risultato e' una lista di fallimenti che non c'entrano
+// niente con quello che si stava misurando.
+Database::run("DELETE FROM users WHERE username LIKE 'prova %' AND email LIKE '%@esempio.invalid'
+                 AND created_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)");
 Database::run("DELETE FROM rate_limits WHERE rkey LIKE 'reg:%' OR rkey LIKE 'login:%' OR rkey LIKE 'azioni:%' OR rkey LIKE 'resend:%'");
 
 // Carico, spostamenti e transazioni se ne vanno in cascata con il personaggio;

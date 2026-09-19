@@ -26,10 +26,30 @@ final class Rng
 {
     private int $stato;
 
+    /**
+     * Quante mani si bruciano alla semina.
+     *
+     * **Senza questo, il primo numero è spazzatura**, e non si vede: la
+     * sequenza lunga è ottima, ma il PRIMO valore dopo la semina no. Un seme
+     * che sta in 32 bit ha i bit alti a zero, `reale()` legge i 53 bit alti, e
+     * alla prima mano quei bit non sono ancora stati toccati da niente. Misurato
+     * su 200.000 semine consecutive: media 0,125 invece di 0,5, e **nessun
+     * valore sopra 0,25**.
+     *
+     * Conta perché mezzo gioco semina un generatore per estrarne un numero solo
+     * (un carico in quell'ora, il rumore del prezzo a quel passo): quella è
+     * sempre e solo la prima mano. Bastava una mano per raddrizzare la
+     * distribuzione; se ne bruciano tre perché costano niente.
+     */
+    private const RISCALDAMENTO = 3;
+
     public function __construct(int $seme)
     {
         // Lo zero è l'unico stato da cui xorshift non esce più.
         $this->stato = $seme === 0 ? 0x2545F4914F6CDD1D : $seme;
+        for ($i = 0; $i < self::RISCALDAMENTO; $i++) {
+            $this->successivo();
+        }
     }
 
     /**
@@ -40,7 +60,12 @@ final class Rng
     public static function da(int $seme, string $etichetta): self
     {
         // crc32 è deterministico, veloce, e sta nei 32 bit: niente traboccamenti.
-        return new self($seme ^ (int) crc32($etichetta));
+        // Se ne prendono DUE, di cui uno spostato in alto, così il seme riempie
+        // tutti e 64 i bit invece che solo i primi 32 — il riscaldamento fa il
+        // resto, ma partire già larghi non costa niente.
+        $a = (int) crc32($etichetta);
+        $b = (int) crc32($etichetta . "\x1f");
+        return new self($seme ^ $a ^ ($b << 32));
     }
 
     /** Scorrimento a destra logico: senza questo, xorshift si spegne. */

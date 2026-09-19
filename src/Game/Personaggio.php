@@ -212,6 +212,16 @@ final class Personaggio
             throw $e;
         }
 
+        // Il biglietto va nel registro come tutto il resto. Senza questa riga
+        // il contante cala e il registro non lo spiega: chi prova a far tornare
+        // i conti trova un buco che vale esattamente i viaggi fatti, e non ha
+        // modo di capirlo dall'interfaccia. Andare a piedi non costa, e quindi
+        // non lascia riga.
+        if ((int) $opz['costo'] > 0) {
+            Contabilita::segna($personaggioId, 'viaggio', 'sporco', -(int) $opz['costo'],
+                $mezzo . ' per ' . (Mondo::piazza($aPiazzaId)['nome'] ?? 'altrove'));
+        }
+
         Audit::log('mondo.partenza', (int) $p['user_id'], 'piazza', $aPiazzaId,
             ['mezzo' => $mezzo, 'minuti' => $opz['minuti'], 'costo' => $opz['costo']], $ip);
 
