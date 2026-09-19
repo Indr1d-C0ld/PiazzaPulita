@@ -463,6 +463,22 @@ traiettoria che imbocca male. Il lavoro che renderebbe affidabile ogni taratura 
 è sulla geografia: è **far misurare allo strumento una distribuzione** — più strategie e
 più stati di mercato — invece di un numero solo.
 
+**Valutato il 19/09/2026 e deciso di NON farlo adesso**, perché renderebbe più preciso il
+numero del *giocatore finto*, che non è il bersaglio. C'è anche una trappola: le strategie
+da confrontare le sceglierebbe chi scrive lo strumento, quindi la varianza misurata sarebbe
+quella delle nostre supposizioni su come si gioca, servita con l'aria di un intervallo di
+confidenza. Meglio un numero secco etichettato per quello che è. E la decisione che quel
+numero informa — `R` — sono **due righe di `game_config`** modificabili a caldo in dieci
+secondi: per una cosa così reversibile, stringere le barre d'errore è sproporzionato.
+
+Torna necessario in due casi, e conviene riconoscerli: **(1)** quando ci sono giocatori
+veri e nasce una discussione su un numero, perché lì serve un metro condiviso; **(2)**
+prima di qualunque modifica che *non* sia una chiave di configurazione — ritagliare la
+tabella dei beni, rifare la geografia, cambiare le fasce. Quelle non si annullano in dieci
+secondi. Se servisse una versione minima e onesta: tenere **ferma** la strategia e variare
+solo lo stato del mondo (semi diversi, ore di respiro diverse), che misura la varianza del
+gioco invece della nostra, e basterebbe a dire se Palermo è una stranezza vera.
+
 E resta valido quello che il §9 dice da sempre: il bilanciamento vero si fa con i giocatori
 veri. Tutto il resto si misura contro un giocatore finto.
 
