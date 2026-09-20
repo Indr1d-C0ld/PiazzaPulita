@@ -213,13 +213,28 @@ PAGINA=$(c -L -X POST "${BASE_URL}/profilo/foto" -F "_token=${TOK}" -F "foto=@${
 grep -q "Fotografia sul profilo" <<< "${PAGINA}" \
   && verifica "ritaglio fuori bordo riportato dentro" "si" "si" || verifica "ritaglio fuori bordo riportato dentro" "si" "no"
 
-# La vetrina pubblica la mostra.
+# La mostrano TUTTE E DUE le pagine: la propria e la vetrina pubblica.
+#
+# Si cerca il NOME DEL FILE dentro il `src`, non `class="avatar"`: quella classe
+# ce l'ha anche il segnaposto con l'iniziale (`avatar--vuoto`), quindi la vecchia
+# verifica passava anche quando la fotografia non si vedeva affatto. Ed è
+# successo: `Auth::user()` non leggeva la colonna `avatar_file`, quindi sul
+# proprio profilo non compariva niente e nessuna prova se ne accorgeva.
+FILE=$(dbq "SELECT avatar_file FROM users WHERE id=${UID_}")
+PAGINA=$(c "${BASE_URL}/profilo")
+grep -q "img/avatar/${FILE}" <<< "${PAGINA}" \
+  && verifica "il proprio profilo mostra il volto" "si" "si" \
+  || verifica "il proprio profilo mostra il volto" "si" "no"
+grep -q 'avatar--vuoto' <<< "${PAGINA}" \
+  && verifica "e non il segnaposto con l'iniziale" "si" "no" \
+  || verifica "e non il segnaposto con l'iniziale" "si" "si"
+
 PAGINA=$(c "${BASE_URL}/profilo/${UID_}")
-grep -q 'class="avatar' <<< "${PAGINA}" \
-  && verifica "la vetrina mostra il volto" "si" "si" || verifica "la vetrina mostra il volto" "si" "no"
+grep -q "img/avatar/${FILE}" <<< "${PAGINA}" \
+  && verifica "la vetrina pubblica mostra il volto" "si" "si" \
+  || verifica "la vetrina pubblica mostra il volto" "si" "no"
 
 # E si toglie, portandosi via il file.
-FILE=$(dbq "SELECT avatar_file FROM users WHERE id=${UID_}")
 TOK=$(c "${BASE_URL}/profilo" | token_da)
 c -o /dev/null -L -X POST "${BASE_URL}/profilo/foto/togli" --data-urlencode "_token=${TOK}"
 verifica "fotografia tolta dal profilo" "" "$(dbq "SELECT COALESCE(avatar_file,'') FROM users WHERE id=${UID_}")"

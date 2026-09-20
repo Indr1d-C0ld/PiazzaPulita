@@ -39,8 +39,14 @@ final class Auth
         }
 
         $row = Database::first(
+            // Le colonne si elencano a mano per non tirarsi dietro
+            // `password_hash` a ogni richiesta. Il prezzo è che una colonna
+            // nuova va aggiunta ANCHE qui, e dimenticarlo non rompe niente in
+            // modo visibile: `avatar_file` mancava, quindi la fotografia si
+            // caricava, si salvava e si serviva — ma sul proprio profilo non
+            // compariva mai, perché il valore arrivava sempre nullo.
             'SELECT id, username, email, status, role, email_verified_at, created_at, last_login_at,
-                    nota, luce
+                    nota, luce, avatar_file
              FROM users WHERE id = ?',
             [(int) $id]
         );

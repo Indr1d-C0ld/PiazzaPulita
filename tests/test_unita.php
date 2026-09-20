@@ -820,6 +820,16 @@ $viste['gioco/strada (in viaggio)'] = ['__vista' => 'gioco/strada', 'title' => '
 // pulsante lo disabilita lo script, non il markup. Con `disabled` scritto a mano
 // nella pagina, chi non esegue lo script non puo' inviare niente — e il
 // <noscript> accanto promette il contrario.
+// Le due facce della vetrina: con la fotografia si vede l'immagine, senza si
+// vede l'iniziale. Sono rami diversi della stessa vista, e finora nessuno
+// controllava QUALE dei due usciva.
+$conFoto = View::render('profilo/mio', [
+    'title' => 'Profilo', 'utente' => $utente, 'notaMax' => 500,
+    'avatar' => 'img/avatar/abc.webp', 'lato' => 320,
+], null);
+prova('col volto si vede l\'immagine',  true, str_contains($conFoto, 'img/avatar/abc.webp'));
+prova('e non il segnaposto',            false, str_contains($conFoto, 'avatar--vuoto'));
+
 $modulo = View::render('profilo/mio', [
     'title' => 'Profilo', 'utente' => $utente, 'notaMax' => 500, 'avatar' => null, 'lato' => 320,
 ], null);
@@ -827,6 +837,7 @@ prova('il pulsante della foto non nasce spento', false,
     (bool) preg_match('/<button type="submit"[^>]*disabled[^>]*>Metti questa/', $modulo));
 prova('e il modulo accetta i file',              true,
     str_contains($modulo, 'enctype="multipart/form-data"'));
+prova('senza volto si vede l\'iniziale',         true, str_contains($modulo, 'avatar--vuoto'));
 
 foreach ($viste as $nome => $dati) {
     $file = $dati['__vista'] ?? $nome;
