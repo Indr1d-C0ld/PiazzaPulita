@@ -816,6 +816,18 @@ unset($viste['gioco/strada@viaggio']);
 $viste['gioco/strada (in viaggio)'] = ['__vista' => 'gioco/strada', 'title' => 'In viaggio',
     'stato' => $statoInViaggio, 'vicine' => [], 'altri' => []];
 
+// Il modulo della fotografia deve poter partire anche senza JavaScript: il
+// pulsante lo disabilita lo script, non il markup. Con `disabled` scritto a mano
+// nella pagina, chi non esegue lo script non puo' inviare niente — e il
+// <noscript> accanto promette il contrario.
+$modulo = View::render('profilo/mio', [
+    'title' => 'Profilo', 'utente' => $utente, 'notaMax' => 500, 'avatar' => null, 'lato' => 320,
+], null);
+prova('il pulsante della foto non nasce spento', false,
+    (bool) preg_match('/<button type="submit"[^>]*disabled[^>]*>Metti questa/', $modulo));
+prova('e il modulo accetta i file',              true,
+    str_contains($modulo, 'enctype="multipart/form-data"'));
+
 foreach ($viste as $nome => $dati) {
     $file = $dati['__vista'] ?? $nome;
     unset($dati['__vista']);

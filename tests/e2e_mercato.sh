@@ -158,6 +158,26 @@ grep -q "In viaggio non si tratta" <<< "${PAGINA}" \
   && verifica "in viaggio non si tratta" "si" "si" || verifica "in viaggio non si tratta" "si" "no"
 dbq "UPDATE personaggi SET arrivo_at=NULL WHERE id=${PID}" >/dev/null
 
+# --- Il riquadro di centratura, lato pagina ----------------------------------
+#
+# Le due verifiche che mancavano, e che sono costate un modulo muto: il riquadro
+# mostra l'anteprima con URL.createObjectURL(), che produce un URL `blob:`. Se la
+# CSP non lo permette, il browser blocca l'immagine, `onload` non scatta mai e
+# con esso non scatta la riga che riabilita il pulsante: si sceglie la foto e non
+# succede NIENTE, senza un messaggio.
+INTESTAZIONI=$(c -o /dev/null -D - "${BASE_URL}/profilo")
+grep -qi "img-src[^;]*blob:" <<< "${INTESTAZIONI}" \
+  && verifica "la CSP permette le anteprime blob:" "si" "si" \
+  || verifica "la CSP permette le anteprime blob:" "si" "no"
+
+# E il pulsante non deve nascere spento: senza JavaScript il modulo deve poter
+# partire lo stesso, perche' il server sa ritagliare centrato da solo. A
+# disabilitarlo ci pensa lo script, se c'e'.
+PAGINA=$(c "${BASE_URL}/profilo")
+grep -qE '<button type="submit"[^>]*disabled[^>]*>Metti questa' <<< "${PAGINA}" \
+  && verifica "il pulsante della foto non nasce spento" "si" "no" \
+  || verifica "il pulsante della foto non nasce spento" "si" "si"
+
 # --- La fotografia del profilo ----------------------------------------------
 php -r '$im=imagecreatetruecolor(900,600); imagefilledrectangle($im,0,0,900,600,imagecolorallocate($im,120,90,60)); imagejpeg($im,"'"${TMPD}"'/foto.jpg",90);'
 TOK=$(c "${BASE_URL}/profilo" | token_da)

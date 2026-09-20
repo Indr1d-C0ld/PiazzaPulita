@@ -59,7 +59,11 @@ final class Response
                 'X-Content-Type-Options' => 'nosniff',
                 'X-Frame-Options'        => 'SAMEORIGIN',
                 'Referrer-Policy'        => 'same-origin',
-                'Content-Security-Policy' => "default-src 'self'; img-src 'self' data:; "
+                // `blob:` serve all'anteprima della fotografia del profilo, che il
+                // riquadro di centratura costruisce con URL.createObjectURL(): senza,
+                // il browser blocca l'immagine, `onload` non scatta mai e il modulo
+                // resta muto — bloccato, ma senza dire niente a nessuno.
+                'Content-Security-Policy' => "default-src 'self'; img-src 'self' data: blob:; "
                     . "style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'self'; "
                     . "form-action 'self'; frame-ancestors 'self'",
             ];

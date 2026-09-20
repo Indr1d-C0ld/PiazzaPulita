@@ -68,7 +68,7 @@
       <input type="hidden" name="sy" value="0">
       <input type="hidden" name="lato" value="0">
 
-      <div class="azioni"><button type="submit" disabled>Metti questa</button></div>
+      <div class="azioni"><button type="submit">Metti questa</button></div>
       <noscript>
         <p class="minuto">Senza JavaScript il riquadro non c'è: la fotografia viene
            ritagliata quadrata e centrata da sola.</p>

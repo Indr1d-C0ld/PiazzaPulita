@@ -28,6 +28,17 @@
   const invia   = box.querySelector('button[type=submit]');
   if (!scelta || !cornice || !img) return;
 
+  // Il pulsante nasce ATTIVO nel markup, perché senza JavaScript il modulo deve
+  // poter partire lo stesso (il server ritaglia centrato). Lo disabilita questo
+  // script, che se c'è si prende la responsabilità di riabilitarlo quando
+  // l'anteprima è pronta.
+  if (invia) invia.disabled = true;
+
+  function avvisa(testo) {
+    const p = box.querySelector('[data-avviso]');
+    if (p) p.textContent = testo || '';
+  }
+
   let nw = 0, nh = 0;       // misure vere dell'immagine
   let base = 1;             // scala minima perché copra la cornice
   let ox = 0, oy = 0;       // posizione dell'immagine dentro la cornice
@@ -54,12 +65,27 @@
     const f = scelta.files && scelta.files[0];
     if (!f) return;
     if (!/^image\/(jpeg|png|webp)$/.test(f.type)) {
-      box.querySelector('[data-avviso]').textContent =
-        'Serve un JPEG, un PNG o un WebP.';
+      avvisa('Serve un JPEG, un PNG o un WebP.');
+      if (invia) invia.disabled = true;
       return;
     }
-    box.querySelector('[data-avviso]').textContent = '';
+    avvisa('');
     const url = URL.createObjectURL(f);
+
+    // Se l'anteprima non si carica non si resta muti. Prima era così, e il
+    // modulo sembrava semplicemente non funzionare: nessun riquadro, nessun
+    // messaggio, il pulsante spento per sempre. Si dice cos'è successo e si
+    // lascia comunque partire l'invio — il server sa ritagliare da solo.
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      cornice.hidden = true;
+      const comandi = box.querySelector('[data-comandi]');
+      if (comandi) comandi.hidden = true;
+      avvisa('Non riesco a mostrarti l\'anteprima di questa immagine. '
+           + 'Puoi caricarla lo stesso: verrà ritagliata quadrata e centrata.');
+      if (invia) invia.disabled = false;
+    };
+
     img.onload = function () {
       nw = img.naturalWidth; nh = img.naturalHeight;
       base = lato() / Math.min(nw, nh);
