@@ -398,10 +398,15 @@ bash tests/e2e_legge.sh       # calore, fascicolo, blitz, carcere, difese
 bash tests/e2e_organico.sh    # attributi, uomini, corrieri, pentiti, fornitori
 bash tests/e2e_rivalita.sh    # due giocatori veri: botte, bottino, spie, batterie, pizzo
 bash tests/e2e_rifinitura.sh  # obiettivi, graduatorie, albo d'oro, admin, installabilità
+bash tests/browser_avatar.sh  # il riquadro della foto, in Chromium headless
 ```
 
 Le prove end-to-end girano **attraverso Apache sull'installazione vera**, non su un
-simulacro. Le unitarie coprono i moduli puri e il rendering di **tutte** le viste in tutti i
+simulacro. Una di loro non usa `curl` ma **Chromium headless**, e c'è per un motivo
+imparato sul campo: `curl` non è un browser — non applica la CSP, non impagina niente, non
+esegue JavaScript. Due guasti del riquadro della fotografia sono passati esattamente da lì
+senza far diventare rossa una sola verifica. Se non c'è Chromium, quella prova si salta
+dicendolo, invece di fallire. Le unitarie coprono i moduli puri e il rendering di **tutte** le viste in tutti i
 loro stati: una variabile dimenticata in un `<?php` diventa una pagina bianca solo quando ci
 arriva un giocatore.
 

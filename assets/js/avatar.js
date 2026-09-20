@@ -46,8 +46,14 @@
   const lato = () => cornice.clientWidth;
 
   function limita() {
+    const F = lato();
     const s = base * parseFloat(zoom.value || '1');
-    const w = nw * s, h = nh * s, F = lato();
+    // Guardia: senza misure valide non si scrive niente. Serve perché
+    // `campoL` vale `F / s`, e con `s` a zero ci finirebbe dentro `Infinity`
+    // — che il server legge come zero e ritaglia centrato, ignorando in
+    // silenzio il riquadro che l'utente ha appena regolato.
+    if (!nw || !nh || F <= 0 || !(s > 0)) { return; }
+    const w = nw * s, h = nh * s;
     ox = Math.min(0, Math.max(F - w, ox));
     oy = Math.min(0, Math.max(F - h, oy));
     img.style.width = w + 'px';
@@ -59,6 +65,26 @@
     campoX.value = Math.round(-ox / s);
     campoY.value = Math.round(-oy / s);
     campoL.value = Math.round(F / s);
+  }
+
+  /** Rimette l'immagine al suo posto: scala minima che copre la cornice, e
+   *  inquadratura di partenza un po' più in alto del centro, perché in un
+   *  ritratto la testa sta in alto. Va chiamata a cornice VISIBILE. */
+  function sistema() {
+    const F = lato();
+    if (!nw || !nh) { return; }
+    if (F <= 0) {
+      // La cornice non ha ancora una misura: può succedere se la pagina sta
+      // ancora impaginando. Si riprova al disegno successivo invece di
+      // rassegnarsi a una scala sbagliata.
+      requestAnimationFrame(sistema);
+      return;
+    }
+    base = F / Math.min(nw, nh);
+    zoom.value = '1';
+    ox = (F - nw * base) / 2;
+    oy = Math.min(0, -(nh * base - F) * 0.18);
+    limita();
   }
 
   scelta.addEventListener('change', function () {
@@ -88,16 +114,20 @@
 
     img.onload = function () {
       nw = img.naturalWidth; nh = img.naturalHeight;
-      base = lato() / Math.min(nw, nh);
-      zoom.value = '1';
-      // Si parte centrati sul lato corto, un po' più in alto del centro.
-      const s = base;
-      ox = (lato() - nw * s) / 2;
-      oy = Math.min(0, -(nh * s - lato()) * 0.18);
+
+      // SI SCOPRE LA CORNICE PRIMA DI MISURARLA. Finché ha l'attributo
+      // `hidden` vale `display: none`, e `clientWidth` di un elemento non
+      // disegnato è ZERO: misurandola prima, la scala dell'anteprima veniva
+      // zero e l'immagine finiva larga zero pixel. Il riquadro compariva
+      // vuoto, con dentro la foto invisibile. Il sintomo era tanto più
+      // confondente perché ridimensionando la finestra si sistemava da sé —
+      // il gestore del `resize` ricalcola la scala a cornice ormai visibile.
       cornice.hidden = false;
-      box.querySelector('[data-comandi]').hidden = false;
+      const comandi = box.querySelector('[data-comandi]');
+      if (comandi) comandi.hidden = false;
+
+      sistema();
       if (invia) invia.disabled = false;
-      limita();
       URL.revokeObjectURL(url);
     };
     img.src = url;
@@ -105,7 +135,9 @@
 
   zoom.addEventListener('input', limita);
   window.addEventListener('resize', function () {
-    if (nw) { base = lato() / Math.min(nw, nh); limita(); }
+    if (!nw) { return; }
+    const F = lato();
+    if (F > 0) { base = F / Math.min(nw, nh); limita(); }
   });
 
   // Trascinamento, col dito o col mouse: pointer events li coprono tutti e due.
