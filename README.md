@@ -319,6 +319,16 @@ L'interfaccia è **carta di giornale italiana anni '80** — fondo ecru, inchios
 cinabro, titoli in grazie, cifre in monospaziato tabellare — con luce chiara/scura salvata
 sull'utente, e si **installa come app** (PWA) sul telefono.
 
+**Si gioca col dito senza rinunciare al monitor.** Le regole per il tocco stanno sotto
+`@media (pointer: coarse)`, che è la condizione onesta — non «lo schermo è stretto» ma
+«chi punta è un dito»: prende il telefono e il tablet, e non può raggiungere un monitor
+col mouse. Da lì i bersagli passano a 44px e le etichette minute salgono sopra i 12px.
+Sotto i 40rem il **listino diventa a schede impilate**: una tabella a sette colonne su un
+telefono si può solo trascinare di lato, e il listino è *la* schermata del gioco. Il markup
+però resta una tabella sola — le intestazioni ripetute nelle schede sono attributi
+`data-etichetta`, e un attributo che nessuna regola legge non si vede. Su monitor non
+cambia una riga.
+
 > Una scelta dichiarata: l'app **non mette in cache nessuna pagina**. Lo stato del gioco sta
 > sul server ed è autoritativo; una pagina servita dalla cache mostrerebbe un mondo che non
 > esiste più, e un listino vecchio di dieci minuti non è degradazione elegante — è una bugia
@@ -399,6 +409,7 @@ bash tests/e2e_organico.sh    # attributi, uomini, corrieri, pentiti, fornitori
 bash tests/e2e_rivalita.sh    # due giocatori veri: botte, bottino, spie, batterie, pizzo
 bash tests/e2e_rifinitura.sh  # obiettivi, graduatorie, albo d'oro, admin, installabilità
 bash tests/browser_avatar.sh  # il riquadro della foto, in Chromium headless
+bash tests/browser_schermi.sh # telefono e tablet: niente scorrimento laterale, 44px col dito
 ```
 
 Le prove end-to-end girano **attraverso Apache sull'installazione vera**, non su un

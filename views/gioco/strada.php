@@ -60,7 +60,7 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
       <p class="minuto">Qui non gira niente. Capita: prova un'altra piazza.</p>
     <?php else: ?>
     <div class="tabella-avvolgi">
-      <table class="tabella">
+      <table class="tabella tabella--schede">
         <thead><tr>
           <th>Merce</th><th class="num">Compri a</th><th class="num">Vendi a</th>
           <th class="num">Giacenza</th><th class="num">Assorbe</th><th>Ingombro</th><th>Ordine</th>
@@ -75,11 +75,11 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
                     −<?= e(number_format((float) $v['fornitore']['sconto'] * 100, 0)) ?>% da
                     <?= e(quantita((int) $v['fornitore']['lotto_min'])) ?></span>
                 <?php endif; ?></td>
-            <td class="num"><?= e(lire($v['acquisto'])) ?></td>
-            <td class="num"><?= e(lire($v['vendita'])) ?></td>
-            <td class="num"><?= e(quantita($v['offerta'])) ?></td>
-            <td class="num"><?= e(quantita($v['domanda'])) ?></td>
-            <td class="num minuto"><?= (int) $b['ingombro'] ?></td>
+            <td class="num" data-etichetta="Compri a"><?= e(lire($v['acquisto'])) ?></td>
+            <td class="num" data-etichetta="Vendi a"><?= e(lire($v['vendita'])) ?></td>
+            <td class="num" data-etichetta="Giacenza"><?= e(quantita($v['offerta'])) ?></td>
+            <td class="num" data-etichetta="Assorbe"><?= e(quantita($v['domanda'])) ?></td>
+            <td class="num minuto" data-etichetta="Ingombro"><?= (int) $b['ingombro'] ?></td>
             <td>
               <form method="post" action="<?= e(url('/ordina')) ?>" class="ordine">
                 <?= csrf_field() ?>
@@ -129,7 +129,7 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
         <?= e(fmt_dt($deposito['pagato_fino_a'])) ?>.
       </p>
       <div class="tabella-avvolgi">
-        <table class="tabella">
+        <table class="tabella tabella--schede">
           <thead><tr><th>Merce</th><th class="num">Addosso</th><th class="num">In deposito</th><th>Sposta</th></tr></thead>
           <tbody>
           <?php
@@ -143,8 +143,8 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
           foreach ($tutte as $id => $r): ?>
             <tr>
               <td><?= e($r['bene']['nome']) ?> <span class="minuto">(<?= e($r['bene']['unita']) ?>)</span></td>
-              <td class="num"><?= e(quantita($r['addosso'])) ?></td>
-              <td class="num"><?= e(quantita($r['dentro'])) ?></td>
+              <td class="num" data-etichetta="Addosso"><?= e(quantita($r['addosso'])) ?></td>
+              <td class="num" data-etichetta="In deposito"><?= e(quantita($r['dentro'])) ?></td>
               <td>
                 <form method="post" action="<?= e(url('/deposito/sposta')) ?>" class="ordine">
                   <?= csrf_field() ?>

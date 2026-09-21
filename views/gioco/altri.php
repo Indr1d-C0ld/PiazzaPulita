@@ -34,15 +34,15 @@ use App\Sim\Viaggio;
     <p class="minuto">Non c'è nessuno. In una piazza vuota si lavora tranquilli e non si impara niente.</p>
   <?php else: ?>
     <div class="tabella-avvolgi">
-      <table class="tabella">
+      <table class="tabella tabella--schede">
         <thead><tr><th>Chi</th><th>Batteria</th><th class="num">Pubblico nemico</th><th>Cosa puoi fargli</th></tr></thead>
         <tbody>
         <?php foreach ($altri as $a): $fuori = $a['ospedale_fino_a'] !== null || $a['carcere_fino_a'] !== null; ?>
           <tr>
             <td><a href="<?= e(url('/profilo/' . $a['id'])) ?>"><strong><?= e($a['username']) ?></strong></a>
                 <?php if ($fuori): ?><br><span class="minuto">fuori gioco</span><?php endif; ?></td>
-            <td class="minuto"><?= e((string) ($a['batteria'] ?? '—')) ?></td>
-            <td class="num"><?= (int) $a['profilo'] ?></td>
+            <td class="minuto" data-etichetta="Batteria"><?= e((string) ($a['batteria'] ?? '—')) ?></td>
+            <td class="num" data-etichetta="Pubblico nemico"><?= (int) $a['profilo'] ?></td>
             <td>
               <?php if (!$inOspedale): ?>
               <form method="post" action="<?= e(url('/altri/attacca')) ?>" style="display:inline">

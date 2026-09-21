@@ -351,8 +351,27 @@ footer {
   main { padding: 1rem .8rem 2.5rem; }
   .foglio { padding: 1.1rem 1rem; }
   h1 { font-size: 1.5rem; }
-  .testata-corpo { padding: .6rem .8rem; gap: .6rem; }
-  .nav-alto { gap: .7rem; width: 100%; margin-left: 0; }
+  .testata-corpo { padding: .6rem .8rem; gap: .5rem; }
+
+  /* La navigazione su UNA riga che scorre, invece di quattro che restano.
+   *
+   * Con i bersagli portati a 44px, dodici voci che vanno a capo occupavano
+   * mezzo schermo su OGNI pagina — si guadagnava il dito e si perdeva la
+   * pagina. Una striscia orizzontale costa una riga sola e tiene i 44px.
+   * La barra di scorrimento si nasconde: su un telefono non serve a niente e
+   * ruba altri pixel. */
+  .nav-alto {
+    gap: 1rem; width: 100%; margin-left: 0;
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    padding-bottom: .1rem;
+  }
+  .nav-alto::-webkit-scrollbar { display: none; }
+  .nav-alto > * { flex: 0 0 auto; }
+  /* Il nome di chi è collegato va IN FONDO alla striscia: è informazione, non
+     navigazione, e in testa sarebbe un ostacolo da scorrere ogni volta prima
+     di arrivare a «la strada». */
+  .nav-alto .chi { order: 99; }
 }
 
 /* --- Ordini di mercato ------------------------------------------------------ */
@@ -399,4 +418,97 @@ footer {
 .cornice::after {
   content: ''; position: absolute; inset: 12%;
   border: 1px dashed rgba(165, 40, 29, .45); border-radius: 50%; pointer-events: none;
+}
+
+/* --- Dito invece di mouse ---------------------------------------------------
+ *
+ * `pointer: coarse` è la condizione ONESTA per i bersagli da toccare: non «lo
+ * schermo è stretto», ma «chi punta è un dito». Prende il telefono in verticale
+ * e il tablet in orizzontale, e non può toccare un monitor con il mouse — che
+ * è esattamente il vincolo: la vista da PC resta quella di prima, riga per riga.
+ *
+ * La misura di riferimento è 40px sul lato corto. Prima di questo blocco, sul
+ * listino i bottoni d'ordine erano alti 24px con il testo a 10,6px: misurati,
+ * non stimati. */
+@media (pointer: coarse) {
+  /* L'altezza si impone con `min-height`, non giocando con i padding: 44px è
+     una misura, e una misura si scrive. Calcolarla a mano sommando padding,
+     interlinea e bordo porta a sbagliare di qualche pixel senza accorgersene. */
+  button, .bottone, .bottone--minuto, .ordine button { min-height: 44px; }
+  .bottone--minuto, .ordine button { padding-left: .9rem; padding-right: .9rem; font-size: .78rem; }
+  .ordine { gap: .4rem; }
+  .ordine input[type=number] { width: 4.8rem; min-height: 44px; font-size: .95rem; }
+  .campo input, .campo select, .modulo input, .modulo select { min-height: 44px; }
+
+  /* Le celle si allargano: il dito sbaglia riga più facilmente dell'occhio. */
+  table.tabella td, table.tabella th { padding: .6rem; }
+
+  /* I collegamenti diventano una fascia alta abbastanza da centrarli. */
+  .nav-alto a, .linguette a, .tabella a {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+
+  /* Il riquadro della fotografia: più grande, che ci si trascina dentro. */
+  .cornice { max-width: 18rem; }
+}
+
+/* --- Schermi stretti: leggibilità -------------------------------------------
+ *
+ * Le etichette minute del progetto (occhielli, intestazioni di tabella, i `dt`
+ * dei dati) stanno fra 10,6 e 10,9px: su un monitor a mezzo metro si leggono,
+ * in mano su un telefono no. Qui salgono sopra i 12px — solo qui.
+ *
+ * La condizione è doppia: schermo stretto OPPURE dito. Un tablet in verticale è
+ * largo 768px, cioè sopra i 40rem, e con la sola larghezza resterebbe fuori pur
+ * essendo esattamente il caso da servire. Col mouse non scatta mai, a nessuna
+ * larghezza: la vista da PC non la tocca nessuna di queste righe. */
+@media (max-width: 40rem), (pointer: coarse) {
+  .occhiello { font-size: .8rem; }
+  table.tabella th { font-size: .8rem; }
+  .dato dt { font-size: .8rem; }
+  .minuto { font-size: .84rem; }
+  .campo .aiuto { font-size: .8rem; }
+}
+
+/* --- Tabelle che diventano schede -------------------------------------------
+ *
+ * Una tabella a sette colonne su 375px si può solo trascinare di lato, e il
+ * listino è LA schermata del gioco: trascinarla mentre si cerca di centrare un
+ * bottone è il contrario di pratico. Sotto i 40rem le righe diventano schede
+ * impilate, con l'intestazione ripetuta in ogni cella (`data-etichetta`).
+ *
+ * Il markup resta UNA TABELLA: su monitor non cambia niente: né una riga di
+ * HTML diversa, né una regola che la tocchi. Le etichette sono attributi, e un
+ * attributo che nessuna regola legge non si vede. */
+@media (max-width: 40rem) {
+  table.tabella--schede,
+  table.tabella--schede tbody,
+  table.tabella--schede tr,
+  table.tabella--schede td { display: block; width: 100%; }
+
+  table.tabella--schede thead { display: none; }
+
+  table.tabella--schede tr {
+    border: 1px solid var(--riga); border-radius: var(--raggio);
+    background: var(--carta-2); padding: .55rem .8rem; margin-bottom: .7rem;
+  }
+  table.tabella--schede tbody tr:hover { background: var(--carta-2); }
+
+  table.tabella--schede td {
+    border: 0; padding: .22rem 0; text-align: left;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  }
+  table.tabella--schede td::before {
+    content: attr(data-etichetta);
+    color: var(--inchiostro-3); font-size: .78rem;
+    text-transform: uppercase; letter-spacing: .1em; white-space: nowrap;
+  }
+  /* Le celle senza etichetta (il nome della merce, la riga dei comandi) stanno
+     per conto loro, a tutta larghezza. */
+  table.tabella--schede td:not([data-etichetta]) { display: block; }
+  table.tabella--schede td:first-child {
+    font-size: 1.02rem; padding-bottom: .35rem;
+    border-bottom: 1px solid var(--riga); margin-bottom: .35rem;
+  }
+  table.tabella--schede td:last-child { padding-top: .5rem; }
 }
