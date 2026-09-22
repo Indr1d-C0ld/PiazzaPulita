@@ -26,7 +26,8 @@ declare(strict_types=1);
  *   php bin/console.php mondo:tratte [citta]            tempi e costi da una citta'
  *   php bin/console.php dove         <username>         dov'e' un giocatore
  *   php bin/console.php personaggio:cancella <username>  ricomincia da capo (conferma)
- *   php bin/console.php mercato:semina [--conserva]     costruisce il mercato dal tetto
+ *   php bin/console.php avatar:verifica [--ripara]      fotografie: banca dati contro disco
+  php bin/console.php mercato:semina [--conserva]     costruisce il mercato dal tetto
  *   php bin/console.php mercato:stato [piazza]          il listino di una piazza
  *   php bin/console.php balance:report                  il controllo di bilanciamento
  */
@@ -340,6 +341,51 @@ try {
                 ['personaggio' => (int) $p['id'], 'dove' => $dove['citta'] ?? '?', 'via' => 'console']);
 
             out('Cancellato. Al prossimo accesso ' . $u['username'] . ' risceglie la citta\'.');
+            break;
+
+        case 'avatar:verifica':
+            // Le fotografie stanno su disco e il loro nome in banca dati: se le
+            // due cose divergono, il giocatore vede un rettangolo grigio e non
+            // capisce perché. È successo davvero — un `rsync --delete` senza
+            // l'esclusione giusta le portava via tutte a ogni deploy — quindi
+            // adesso c'è un comando che lo dice, e volendo rimedia.
+            $ripara = in_array('--ripara', $args, true);
+            $dir = ($GLOBALS['__project_root'] ?? dirname(__DIR__)) . '/assets/img/avatar';
+            $righe = Database::all(
+                "SELECT id, username, avatar_file FROM users WHERE avatar_file IS NOT NULL AND avatar_file <> ''");
+            $appesi = [];
+            foreach ($righe as $u) {
+                if (!is_file($dir . '/' . basename((string) $u['avatar_file']))) {
+                    $appesi[] = $u;
+                }
+            }
+            // Si guarda l'installazione DA CUI SI VIENE LANCIATI: dalla
+            // cartella di lavoro non è quella servita dal web. Il percorso si
+            // stampa apposta, così si vede subito se si sta guardando la
+            // cartella sbagliata.
+            out('Fotografie del profilo — ' . $dir);
+            out('  registrate in banca dati : ' . count($righe));
+            out('  file presenti sul disco  : ' . count(glob($dir . '/*.webp') ?: []));
+            if ($appesi === []) {
+                out('  nessun riferimento appeso.');
+                break;
+            }
+            out('  RIFERIMENTI APPESI       : ' . count($appesi));
+            foreach ($appesi as $u) {
+                out('    ' . $u['username'] . ' → ' . $u['avatar_file']);
+            }
+            if (!$ripara) {
+                out('');
+                out('  Il file non si può ricostruire: chi lo aveva deve ricaricarlo.');
+                out('  Con --ripara si toglie il riferimento, così al suo posto');
+                out('  torna l\'iniziale invece di un rettangolo vuoto.');
+                break;
+            }
+            foreach ($appesi as $u) {
+                Database::run('UPDATE users SET avatar_file = NULL, avatar_hash = NULL WHERE id = ?',
+                    [(int) $u['id']]);
+            }
+            out('  ' . count($appesi) . ' riferimenti tolti.');
             break;
 
         case 'mercato:semina':

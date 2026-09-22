@@ -32,12 +32,23 @@ if [[ ! -d "${DESTINAZIONE}" ]]; then
 fi
 
 say "Copia del codice in ${DESTINAZIONE}"
+#
+# LE ESCLUSIONI NON SONO UN DETTAGLIO. Con `--delete`, tutto quello che sta
+# nella destinazione e non nel sorgente viene CANCELLATO — e le cose che il
+# processo web scrive da solo stanno soltanto lì, perché in sorgente sono
+# escluse da git. Le fotografie del profilo lo erano: ogni singolo deploy
+# cancellava le foto di tutti i giocatori, lasciando in banca dati dei
+# riferimenti a file che non esistevano più. Nessuno se ne accorgeva, perché
+# un'immagine rotta con `alt=""` è un rettangolo grigio e basta.
+#
+# Regola: tutto ciò che nasce a runtime va elencato qui sotto.
 rsync -rlptD --delete \
   --exclude 'fonti/' \
   --exclude 'config/' \
   --exclude '.git/' \
   --exclude 'storage/logs/*.log' \
   --exclude 'storage/*.lock' \
+  --exclude 'assets/img/avatar/*.webp' \
   "${SORGENTE}/" "${DESTINAZIONE}/"
 ok "$(find "${DESTINAZIONE}" -type f | wc -l) file"
 

@@ -405,6 +405,15 @@ Le credenziali SMTP si mettono a mano in `/data/piazzapulita-config/config.php`:
 `mail.transport` resta `log` non parte nessuna e-mail, e senza conferma dell'indirizzo non
 si entra — `user:create` esiste apposta per fare il primo amministratore senza posta.
 
+> **Le esclusioni del deploy non sono un dettaglio.** Con `--delete`, tutto quello che sta
+> nella destinazione e non nel sorgente viene cancellato — e le cose che il processo web
+> scrive da solo stanno soltanto lì, perché in sorgente sono escluse da git. Le fotografie
+> del profilo lo erano: ogni singolo deploy le cancellava tutte, lasciando in banca dati
+> riferimenti a file inesistenti, e il giocatore vedeva un rettangolo grigio. Regola: tutto
+> ciò che nasce a runtime va elencato fra gli `--exclude`. Per controllare che banca dati e
+> disco siano d'accordo c'è `php bin/console.php avatar:verifica [--ripara]`, da lanciare
+> **dalla cartella servita**, non da quella di lavoro.
+
 > Lo script di installazione esiste al posto di un `rsync` a mano per un motivo preciso:
 > `rsync -a` include `-g`, e un utente non privilegiato che copia con `-g` rimette il proprio
 > gruppo sui file, cancellando il `<utente>:www-data` con setgid che il bootstrap aveva
@@ -441,6 +450,7 @@ Per il bilanciamento ci sono tre strumenti:
 
 ```bash
 php bin/console.php balance:report        # l'invariante del tetto, trattato come una prova
+php bin/console.php avatar:verifica       # fotografie: banca dati contro disco
 php bin/_simula_principiante.php 12 NA    # un principiante contro il motore vero
 PIAZZAPULITA_CONFIG=config/config.php \
   php bin/_simula_mondo.php 12 24 cattivo # dodici giocatori veri, e tre invarianti

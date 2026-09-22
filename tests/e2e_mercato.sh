@@ -234,6 +234,20 @@ grep -q "img/avatar/${FILE}" <<< "${PAGINA}" \
   && verifica "la vetrina pubblica mostra il volto" "si" "si" \
   || verifica "la vetrina pubblica mostra il volto" "si" "no"
 
+# IL DEPLOY NON DEVE PORTARSI VIA LE FOTOGRAFIE.
+#
+# Le foto caricate vivono solo nella cartella servita — in sorgente sono escluse
+# da git — e il deploy sincronizza con `--delete`. Senza l'esclusione giusta,
+# ogni singolo deploy le cancellava tutte, lasciando in banca dati riferimenti a
+# file inesistenti: il giocatore vedeva un rettangolo grigio e nessuna prova se
+# ne accorgeva, perche' nessuna prova rilanciava il deploy DOPO aver caricato.
+FILE=$(dbq "SELECT avatar_file FROM users WHERE id=${UID_}")
+bash "${ROOT}/deploy/01-installa.sh" >/dev/null 2>&1
+verifica "il deploy non cancella le fotografie caricate" "200" \
+  "$(c -o /dev/null -w '%{http_code}' "${BASE_URL}/assets/img/avatar/${FILE}")"
+verifica "e il riferimento in banca dati resta buono" "${FILE}" \
+  "$(dbq "SELECT avatar_file FROM users WHERE id=${UID_}")"
+
 # E si toglie, portandosi via il file.
 TOK=$(c "${BASE_URL}/profilo" | token_da)
 c -o /dev/null -L -X POST "${BASE_URL}/profilo/foto/togli" --data-urlencode "_token=${TOK}"
