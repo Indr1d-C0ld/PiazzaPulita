@@ -424,6 +424,29 @@ si entra — `user:create` esiste apposta per fare il primo amministratore senza
 > impostato. Il processo web smette di poter scrivere il diario — **in silenzio**, perché
 > `logger()` ripiega sul syslog e non si lamenta.
 
+## Cosa salvare
+
+Tre cose, e una delle tre è facile da dimenticare.
+
+| | dove sta | perché |
+|---|---|---|
+| **Il mondo** | il database MariaDB | è la partita: personaggi, mercato, fascicoli, cronaca |
+| **I segreti** | `/data/<nome>-config/config.php` | sta **fuori** dall'albero apposta, quindi nessun backup del codice lo prende |
+| **Le fotografie** | `assets/img/avatar/*.webp` **dell'installazione servita** | è l'unico dato degli utenti che non sta né in git né nel database |
+
+Il codice non serve salvarlo: sta qui.
+
+> **Le fotografie sono la trappola.** Il programma se le scrive mentre gira, quindi
+> esistono soltanto nella cartella servita — non nella copia di lavoro da cui si fa il
+> deploy, e non in git (`.gitignore` le esclude, ed è giusto: non sono codice). Un backup
+> che copia il sorgente non le prende, e un ripristino rimetterebbe in piedi il database
+> **con** i riferimenti alle immagini e **nessuna** immagine: ogni profilo mostrerebbe un
+> rettangolo grigio. Dopo un ripristino conviene chiederlo al programma:
+>
+> ```bash
+> php bin/console.php avatar:verifica     # dalla cartella servita, non da quella di lavoro
+> ```
+
 ## Prove e strumenti
 
 ```bash
