@@ -2,7 +2,7 @@
 
 *Browsergame di commercio, rischio e territorio. **Italia, 1980-1995**, in lire.*
 
-![PHP 8.4](https://img.shields.io/badge/PHP-8.4-777bb4) ![MariaDB](https://img.shields.io/badge/MariaDB-11-003545) ![GPL-3.0](https://img.shields.io/badge/licenza-GPL--3.0-a5281d) ![stato](https://img.shields.io/badge/stato-completo%20(F0--F7)-2f6b46)
+![PHP 8.4](https://img.shields.io/badge/PHP-8.4-777bb4) ![MariaDB](https://img.shields.io/badge/MariaDB-11-003545) ![GPL-3.0](https://img.shields.io/badge/licenza-GPL--3.0-a5281d) ![stato](https://img.shields.io/badge/stato-completo%20(F0--F8)-2f6b46)
 
 Trasposizione persistente e multigiocatore di **Drug Wars** (John E. Dell, 1984), riscritta
 da zero: stesse ossa, altro corpo. Nove città italiane, cinquantuno piazze, dieci merci,
@@ -379,10 +379,12 @@ I moduli **puri** stanno in `src/Sim/` e non toccano il database, quindi si prov
 | `Calore` | il rischio come conseguenza |
 | `Crescita` | attributi a rendimenti calanti |
 | `Scontro` | le mani addosso |
+| `Etichette` | da che parte scrivere un'etichetta sulla carta, e come non farle accavallare |
 
-Sopra, `src/Game/` tiene il gioco vero (mondo, listino, contabilità, logistica, legge,
-organico, rivalità, batterie, classifiche, obiettivi, statistiche) e `src/Controllers/` le
-sessantotto rotte dell'interfaccia.
+Sopra, `src/Game/` tiene il gioco vero (mondo, carta, listino, contabilità, logistica,
+legge, organico, rivalità, batterie, chiacchiera, baratto, classifiche, obiettivi,
+statistiche) e `src/Controllers/` le
+settantacinque rotte dell'interfaccia.
 
 ## Installazione
 
@@ -425,7 +427,7 @@ si entra — `user:create` esiste apposta per fare il primo amministratore senza
 ## Prove e strumenti
 
 ```bash
-php tests/test_unita.php      # 243 verifiche, senza rete e senza database
+php tests/test_unita.php      # 266 verifiche, senza rete e senza database
 bash tests/e2e_auth.sh        # iscrizione, conferma, accesso, profilo — attraverso Apache
 bash tests/e2e_mondo.sh       # nascita, viaggi, arrivi, registro
 bash tests/e2e_mercato.sh     # compravendita, impatto sul prezzo, fotografia
@@ -439,8 +441,8 @@ bash tests/browser_avatar.sh  # il riquadro della foto, in Chromium headless
 bash tests/browser_schermi.sh # telefono e tablet: niente scorrimento laterale, 44px col dito
 ```
 
-Le prove end-to-end girano **attraverso Apache sull'installazione vera**, non su un
-simulacro. Una di loro non usa `curl` ma **Chromium headless**, e c'è per un motivo
+Undici suite: le unitarie sui moduli puri, nove end-to-end che girano **attraverso Apache
+sull'installazione vera** (non su un simulacro), e due in un browser. Una di loro non usa `curl` ma **Chromium headless**, e c'è per un motivo
 imparato sul campo: `curl` non è un browser — non applica la CSP, non impagina niente, non
 esegue JavaScript. Due guasti del riquadro della fotografia sono passati esattamente da lì
 senza far diventare rossa una sola verifica. Se non c'è Chromium, quella prova si salta
