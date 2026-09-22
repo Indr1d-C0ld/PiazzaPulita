@@ -22,7 +22,11 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_URL="${BASE_URL:-https://127.0.0.1/piazzapulita}"
 HOST_HDR="${HOST_HDR:-localhost}"
-PORTA="${PORTA:-8099}"
+# Un porto LIBERO, non un numero fisso: sulla stessa macchina può esserci
+# un'altra prova, o un altro lavoro, che tiene quello che avremmo scelto — e la
+# prova fallirebbe per un motivo che non c'entra niente con quello che misura.
+PORTA="${PORTA:-$(python3 -c 'import socket
+s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')}"
 FALLITI=0
 
 CHROME="$(command -v chromium || command -v chromium-browser || command -v google-chrome || true)"

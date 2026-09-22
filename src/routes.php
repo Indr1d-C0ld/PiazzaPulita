@@ -111,6 +111,7 @@ $router->post('/admin/carta/scrivi', [AdminController::class, 'scriviAGiocatore'
 $router->post('/admin/carta/affiggi', [AdminController::class, 'affiggi'], ['admin', 'throttle']);
 $router->get('/admin/giocatori', [AdminController::class, 'giocatori'], ['admin']);
 $router->post('/admin/giocatori', [AdminController::class, 'azioneGiocatore'], ['admin', 'throttle']);
+$router->post('/admin/foto', [AdminController::class, 'fotoGiocatore'], ['admin', 'throttle']);
 $router->get('/admin/posta', [AdminController::class, 'posta'], ['admin']);
 $router->post('/admin/posta/smista', [AdminController::class, 'smista'], ['admin', 'throttle']);
 $router->get('/admin/registro', [AdminController::class, 'registro'], ['admin']);

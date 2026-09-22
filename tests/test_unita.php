@@ -798,9 +798,13 @@ $viste = [
         ]]]],
     ],
     'profilo/pubblico'  => ['title' => 'Profilo', 'p' => $utente, 'mio' => false,
-                            'avatar' => 'img/avatar/x.webp'],
+                            'avatar' => 'img/avatar/x.webp', 'admin' => false, 'utente' => 1],
     'profilo/pubblico (senza foto)' => ['__vista' => 'profilo/pubblico', 'title' => 'Profilo',
-                            'p' => $utente, 'mio' => true, 'avatar' => null],
+                            'p' => $utente, 'mio' => true, 'avatar' => null,
+                            'admin' => false, 'utente' => 1],
+    'profilo/pubblico (visto da chi amministra)' => ['__vista' => 'profilo/pubblico',
+                            'title' => 'Profilo', 'p' => $utente, 'mio' => false,
+                            'avatar' => 'img/avatar/x.webp', 'admin' => true, 'utente' => 1],
     'admin/pannello'    => [
         'title' => 'Amministrazione', 'config' => '/x/config.php', 'db' => true,
         'migrazioni' => [['version' => '0001_fondamenta', 'applied_at' => '2026-09-19 04:00:00']],
@@ -955,6 +959,19 @@ prova('la vetrina mostra la faccia di chi c\'è', true, str_contains($vetrina, '
 prova('e la voce di piazza',                     true, str_contains($vetrina, 'Cerco roba buona.'));
 prova('e distingue l\'avviso dalla voce',        true, str_contains($vetrina, 'voce--avviso'));
 prova('e le proposte di scambio',                true, str_contains($vetrina, 'Acidi'));
+
+// I comandi per moderare la fotografia si vedono SOLO se chi guarda amministra,
+// e mai sul proprio profilo: una casella dimenticata in una condizione qui
+// significherebbe dare a tutti un pulsante che cancella le foto altrui.
+$daAdmin  = View::render('profilo/pubblico', ['title' => 'x', 'p' => $utente, 'mio' => false,
+    'avatar' => 'img/avatar/x.webp', 'admin' => true, 'utente' => 1], null);
+$daNormale = View::render('profilo/pubblico', ['title' => 'x', 'p' => $utente, 'mio' => false,
+    'avatar' => 'img/avatar/x.webp', 'admin' => false, 'utente' => 1], null);
+$suDiMe   = View::render('profilo/pubblico', ['title' => 'x', 'p' => $utente, 'mio' => true,
+    'avatar' => 'img/avatar/x.webp', 'admin' => true, 'utente' => 1], null);
+prova('chi amministra vede i comandi sulla foto',  true,  str_contains($daAdmin, 'moderazione'));
+prova('un giocatore comune no',                    false, str_contains($daNormale, 'moderazione'));
+prova('e nemmeno sul proprio profilo',             false, str_contains($suDiMe, 'moderazione'));
 
 foreach ($viste as $nome => $dati) {
     $file = $dati['__vista'] ?? $nome;

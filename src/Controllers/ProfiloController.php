@@ -72,9 +72,21 @@ final class ProfiloController
      */
     public function mostra(Request $request, string $id): Response
     {
+        // L'IDENTIFICATIVO È QUELLO DEL PERSONAGGIO, non dell'utente.
+        //
+        // Nel gioco una persona è il suo personaggio: gli scontri, le spie, il
+        // baratto, le classifiche e le batterie parlano tutti in quei numeri, e
+        // ogni collegamento «vai al profilo» arriva da una di quelle liste.
+        // Questa rotta invece leggeva la tabella degli utenti: all'inizio i due
+        // numeri coincidevano — le due tabelle crescono insieme — e sembrava
+        // funzionare. Dopo qualche account cancellato hanno cominciato a
+        // divergere, e OGNI collegamento al profilo rispondeva 404.
         $riga = Database::first(
-            "SELECT id, username, nota, created_at, last_seen_at, role, avatar_file
-               FROM users WHERE id = ? AND status = 'active'",
+            "SELECT p.id AS personaggio_id, u.id AS user_id, u.username, u.nota,
+                    u.created_at, u.last_seen_at, u.role, u.avatar_file
+               FROM personaggi p
+               JOIN users u ON u.id = p.user_id
+              WHERE p.id = ? AND u.status = 'active'",
             [(int) $id]
         );
         if ($riga === null) {
@@ -87,9 +99,12 @@ final class ProfiloController
 
         return Response::html(view('profilo/pubblico', [
             'title'  => $riga['username'],
-            'p'      => $riga,
-            'mio'    => Auth::id() === (int) $riga['id'],
+            'p'      => $riga + ['id' => (int) $riga['personaggio_id']],
+            'mio'    => Auth::id() === (int) $riga['user_id'],
             'avatar' => Avatar::url($riga['avatar_file'] ?? null),
+            // Chi amministra vede, qui, i comandi per moderare la fotografia.
+            'admin'  => Auth::isAdmin(),
+            'utente' => (int) $riga['user_id'],
         ]));
     }
 

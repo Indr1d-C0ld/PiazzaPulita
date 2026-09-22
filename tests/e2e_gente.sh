@@ -83,6 +83,67 @@ PAGINA=$(a "${BASE_URL}/altri")
 contiene "nella piazza si vede chi c'è"        "${PAGINA}" "${B_NOME}"
 contiene "e si vede in faccia"                  "${PAGINA}" "img/avatar/${FOTO}"
 
+# --- I collegamenti al profilo --------------------------------------------------
+#
+# Nel gioco una persona È IL SUO PERSONAGGIO: scontri, spie, baratto, classifiche
+# e batterie parlano tutti in quei numeri, e ogni «vai al profilo» arriva da una
+# di quelle liste. La rotta però leggeva la tabella degli UTENTI: all'inizio i due
+# numeri coincidevano — le due tabelle crescono insieme — e sembrava funzionare.
+# Dopo qualche account cancellato hanno cominciato a divergere, e ogni
+# collegamento al profilo rispondeva 404.
+#
+# Questa verifica ha senso SOLO se i due numeri sono diversi: se coincidessero
+# passerebbe comunque, e non dimostrerebbe niente. Quindi prima lo si controlla.
+A_UTENTE=$(dbq "SELECT user_id FROM personaggi WHERE id=${AID}")
+if [[ "${A_UTENTE}" == "${AID}" ]]; then
+  printf '  \033[0;33m··\033[0m    personaggio e utente hanno lo stesso numero: la prova del profilo non dimostrerebbe niente\n'
+else
+  verifica "il profilo si apre con l'id del personaggio" "200" \
+    "$(a -o /dev/null -w '%{http_code}' "${BASE_URL}/profilo/${AID}")"
+  verifica "e NON con quello dell'utente"                "404" \
+    "$(a -o /dev/null -w '%{http_code}' "${BASE_URL}/profilo/${A_UTENTE}")"
+fi
+# E le pagine devono collegare proprio quello, non un altro numero.
+PAGINA=$(a "${BASE_URL}/altri")
+contiene "la vetrina collega il personaggio giusto" "${PAGINA}" "profilo/${BID}\""
+PAGINA=$(a "${BASE_URL}/classifica?g=patrimonio")
+LINK=$(grep -o 'profilo/[0-9]*' <<< "${PAGINA}" | head -1 | cut -d/ -f2)
+if [[ -n "${LINK}" ]]; then
+  verifica "e la classifica pure" "200" "$(a -o /dev/null -w '%{http_code}' "${BASE_URL}/profilo/${LINK}")"
+fi
+
+# --- La fotografia, moderata dall'amministrazione --------------------------------
+php -r '$im=imagecreatetruecolor(300,300); imagefilledrectangle($im,0,0,300,300,imagecolorallocate($im,40,90,140));
+        imagejpeg($im,"'"${TMPD}"'/mod.jpg",90);'
+consolle user:admin "${A_NOME}" >/dev/null
+TOK=$(a "${BASE_URL}/profilo/${BID}" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/admin/foto" -F "_token=${TOK}" -F "chi=${BID}" \
+  -F "azione=sostituisci" -F "foto=@${TMPD}/mod.jpg;type=image/jpeg"
+verifica "l'admin può mettere una foto a un giocatore" "1" \
+  "$(dbq "SELECT COUNT(*) FROM users u JOIN personaggi p ON p.user_id=u.id
+            WHERE p.id=${BID} AND u.avatar_file IS NOT NULL")"
+contiene "e il profilo mostra i comandi di moderazione" "$(a "${BASE_URL}/profilo/${BID}")" 'moderazione'
+
+TOK=$(a "${BASE_URL}/profilo/${BID}" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/admin/foto" -F "_token=${TOK}" -F "chi=${BID}" -F "azione=togli"
+verifica "e può toglierla" "0" \
+  "$(dbq "SELECT COUNT(*) FROM users u JOIN personaggi p ON p.user_id=u.id
+            WHERE p.id=${BID} AND u.avatar_file IS NOT NULL")"
+# Si contano le righe di QUESTO giocatore, non tutte quelle recenti: il registro
+# è condiviso, e una prova che conta righe altrui fallisce per colpa di un'altra.
+B_UTENTE=$(dbq "SELECT user_id FROM personaggi WHERE id=${BID}")
+verifica "restando nel registro" "2" \
+  "$(dbq "SELECT COUNT(*) FROM audit_log WHERE action LIKE 'admin.foto%' AND target_id=${B_UTENTE}")"
+
+# Un giocatore comune non tocca le foto di nessuno.
+TOK=$(b "${BASE_URL}/strada" | token_da)
+CODE=$(b -o /dev/null -w '%{http_code}' -X POST "${BASE_URL}/admin/foto" \
+  --data-urlencode "_token=${TOK}" --data-urlencode "chi=${AID}" --data-urlencode "azione=togli")
+verifica "un giocatore comune non modera niente" "403" "${CODE}"
+# E la propria foto NON si modera da soli passando dalla porta dell'admin.
+PAGINA=$(a "${BASE_URL}/profilo/${AID}")
+manca "sul proprio profilo non compaiono i comandi" "${PAGINA}" 'moderazione'
+
 # --- I nomi sulla carta ---------------------------------------------------------
 #
 # Sulla carta del giocatore si vede sé stessi e chi si potrebbe sapere comunque:

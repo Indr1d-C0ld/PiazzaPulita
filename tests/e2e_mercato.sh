@@ -229,7 +229,10 @@ grep -q 'avatar--vuoto' <<< "${PAGINA}" \
   && verifica "e non il segnaposto con l'iniziale" "si" "no" \
   || verifica "e non il segnaposto con l'iniziale" "si" "si"
 
-PAGINA=$(c "${BASE_URL}/profilo/${UID_}")
+# Il profilo si apre con l'identificativo del PERSONAGGIO, non dell'utente: nel
+# gioco una persona è il suo personaggio, e ogni collegamento arriva da una lista
+# che parla in quei numeri.
+PAGINA=$(c "${BASE_URL}/profilo/${PID}")
 grep -q "img/avatar/${FILE}" <<< "${PAGINA}" \
   && verifica "la vetrina pubblica mostra il volto" "si" "si" \
   || verifica "la vetrina pubblica mostra il volto" "si" "no"

@@ -14,6 +14,29 @@
     <div>
       <h1 style="margin-bottom:.2rem"><?= e($p['username']) ?></h1>
       <?php if ($p['role'] === 'admin'): ?><span class="stato stato--admin">amministra</span><?php endif; ?>
+
+      <?php if (!empty($admin) && empty($mio)): ?>
+        <div class="moderazione">
+          <span class="occhiello" style="margin:0">Amministrazione</span>
+          <p class="minuto" style="margin:.2rem 0 .5rem">
+            Una vetrina con le facce prima o poi ne ospita una che non va bene.
+            Togliere non rovina niente: al suo posto torna l'iniziale, e il giocatore
+            può ricaricarne un'altra.
+          </p>
+          <form method="post" action="<?= e(url('/admin/foto')) ?>" class="modulo" enctype="multipart/form-data">
+            <?= csrf_field() ?>
+            <input type="hidden" name="chi" value="<?= (int) $p['id'] ?>">
+            <input type="hidden" name="torna" value="<?= e(url('/profilo/' . (int) $p['id'])) ?>">
+            <?php if ($avatar !== null): ?>
+              <button name="azione" value="togli" class="bottone--fantasma bottone--minuto">Togli la fotografia</button>
+            <?php endif; ?>
+            <label style="margin-top:.6rem">Sostituiscila
+              <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" required>
+            </label>
+            <button name="azione" value="sostituisci" class="bottone--minuto">Metti questa</button>
+          </form>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
 

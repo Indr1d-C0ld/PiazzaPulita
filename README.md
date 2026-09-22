@@ -325,7 +325,9 @@ Più un **albo d'oro** permanente per chi tiene un primato almeno un mese, col n
 dentro la riga perché sopravviva anche alla cancellazione dell'account.
 
 E poi **statistiche** vere del mondo e tue, il **profilo pubblico** con la fotografia
-centrata a mano nel riquadro, e un'**amministrazione** completa: piazze, calore, chi tiene
+centrata a mano nel riquadro (che chi amministra può **togliere o sostituire** dal profilo
+stesso e dall'elenco dei giocatori — una vetrina con le facce prima o poi ne ospita una che
+non va bene), e un'**amministrazione** completa: piazze, calore, chi tiene
 cosa, giocatori, parametri di gioco modificabili a caldo, coda della posta, registro delle
 azioni. Nessuna azione dell'amministratore crea denaro, per principio: in un mondo a torta
 finita, contanti regalati li pagano tutti gli altri senza accorgersene.

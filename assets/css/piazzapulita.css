@@ -617,3 +617,12 @@ footer {
 @media (max-width: 40rem), (pointer: coarse) {
   .carta .tale { font-size: 12.5px; }
 }
+
+/* I comandi di moderazione sul profilo: si distinguono dal resto della vetrina,
+   perché non sono cose che il giocatore può fare. */
+.moderazione {
+  margin-top: .9rem; padding: .7rem .8rem;
+  border: 1px dashed var(--rosso); border-radius: var(--raggio);
+  background: var(--carta-2);
+}
+.moderazione .occhiello { color: var(--rosso); }

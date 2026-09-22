@@ -12,6 +12,7 @@ use App\Core\Posta;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Game\Avatar;
 use App\Game\Carta;
 use App\Game\Chiacchiera;
 use App\Game\Legge;
@@ -329,6 +330,52 @@ final class AdminController
         return redirect('/admin/carta');
     }
 
+    /**
+     * Moderazione della fotografia di un giocatore: toglierla o sostituirla.
+     *
+     * Serve perché una vetrina pubblica con le facce prima o poi ospita una
+     * faccia che non va bene, e l'unica alternativa sarebbe entrare nel
+     * database a mano. Togliere non distrugge niente di irreparabile: il
+     * giocatore ne ricarica un'altra, e al suo posto torna l'iniziale.
+     *
+     * Sostituire esiste per il caso opposto — qualcuno che una foto la vuole ma
+     * non riesce a caricarla — e passa per lo stesso identico controllo delle
+     * immagini di chiunque: il file di chi amministra non è più fidato di un
+     * altro.
+     */
+    public function fotoGiocatore(Request $request): Response
+    {
+        $chi = $request->int('chi');                 // identificativo del PERSONAGGIO
+        $riga = Database::first(
+            'SELECT p.id, u.id AS user_id, u.username FROM personaggi p
+               JOIN users u ON u.id = p.user_id WHERE p.id = ?', [$chi]);
+        if ($riga === null) {
+            Session::flash('error', 'Personaggio inesistente.');
+            return redirect('/admin/giocatori');
+        }
+        $userId = (int) $riga['user_id'];
+        $torna  = rotta_da_uri($request->str('torna'), '/admin/giocatori');
+
+        if ($request->str('azione') === 'togli') {
+            Avatar::togli($userId, (string) ($GLOBALS['__project_root'] ?? ''));
+            Audit::log('admin.foto.togli', Auth::id(), 'user', $userId,
+                ['username' => $riga['username']], $request->ip());
+            Session::flash('success', 'Fotografia tolta a ' . $riga['username'] . '.');
+            return redirect($torna);
+        }
+
+        $res = Avatar::carica($userId, $request->file('foto') ?? [], 0, 0, 0,
+            (string) ($GLOBALS['__project_root'] ?? ''));
+        if (!$res['ok']) {
+            Session::flash('error', $res['error'] ?? 'Caricamento non riuscito.');
+            return redirect($torna);
+        }
+        Audit::log('admin.foto.sostituisci', Auth::id(), 'user', $userId,
+            ['username' => $riga['username']], $request->ip());
+        Session::flash('success', 'Fotografia sostituita a ' . $riga['username'] . '.');
+        return redirect($torna);
+    }
+
     /** Un avviso appeso in una piazza: lo leggono tutti quelli che ci passano. */
     public function affiggi(Request $request): Response
     {
@@ -351,7 +398,8 @@ final class AdminController
         return Response::html(view('admin/giocatori', [
             'title'  => 'I giocatori',
             'righe'  => Database::all(
-                "SELECT p.*, u.username, u.status, z.nome AS piazza, c.nome AS citta, b.sigla AS batteria,
+                "SELECT p.*, u.username, u.status, u.avatar_file, z.nome AS piazza, c.nome AS citta,
+                    b.sigla AS batteria,
                         (SELECT COUNT(*) FROM fascicoli f WHERE f.personaggio_id = p.id AND f.stato = 'aperto') AS fascicoli
                    FROM personaggi p
                    JOIN users u ON u.id = p.user_id

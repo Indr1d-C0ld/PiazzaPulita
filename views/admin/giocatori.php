@@ -25,7 +25,27 @@
       <tbody>
       <?php foreach ($righe as $p): ?>
         <tr>
-          <td><a href="<?= e(url('/profilo/' . $p['id'])) ?>"><?= e($p['username']) ?></a>
+          <td>
+              <?php $foto = App\Game\Avatar::url($p['avatar_file'] ?? null); ?>
+              <span style="display:flex;gap:.5rem;align-items:center">
+                <?php if ($foto !== null): ?>
+                  <img class="avatar" src="<?= e(asset($foto)) ?>" alt="" width="36" height="36"
+                       style="width:36px;height:36px;object-fit:cover;flex:0 0 36px">
+                <?php endif; ?>
+                <a href="<?= e(url('/profilo/' . $p['id'])) ?>"><?= e($p['username']) ?></a>
+              </span>
+              <form method="post" action="<?= e(url('/admin/foto')) ?>" enctype="multipart/form-data"
+                    style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">
+                <?= csrf_field() ?>
+                <input type="hidden" name="chi" value="<?= (int) $p['id'] ?>">
+                <input type="hidden" name="torna" value="<?= e(url('/admin/giocatori')) ?>">
+                <input type="file" name="foto" accept="image/jpeg,image/png,image/webp"
+                       style="max-width:9rem;font-size:.7rem">
+                <button name="azione" value="sostituisci" class="bottone--fantasma bottone--minuto">metti</button>
+                <?php if ($foto !== null): ?>
+                  <button name="azione" value="togli" class="bottone--fantasma bottone--minuto">togli foto</button>
+                <?php endif; ?>
+              </form>
               <?php if ($p['batteria'] !== null): ?>
                 <span class="minuto">(<?= e($p['batteria']) ?>)</span><?php endif; ?>
               <?php if ((string) $p['status'] !== 'active'): ?>

@@ -1032,6 +1032,30 @@ Due dettagli che non si vedono ma tengono in piedi il resto:
   baratti incrociati accettati nello stesso istante, bloccati in ordine diverso, si
   aspetterebbero a vicenda per sempre.
 
+### 13.4.1 L'identificativo di una persona è il PERSONAGGIO
+
+Nel gioco una persona è il suo personaggio: scontri, spie, baratto, classifiche, batterie e
+territorio parlano tutti in quei numeri, e ogni collegamento «vai al profilo» arriva da una
+di quelle liste. La rotta `/profilo/{id}` invece leggeva la tabella degli **utenti**.
+
+All'inizio non si vedeva: le due tabelle crescono insieme, quindi i due numeri coincidevano
+e tutto sembrava funzionare. Dopo qualche account cancellato hanno cominciato a divergere —
+l'amministratore era personaggio 152 e utente 6 — e **ogni** collegamento al profilo, da
+ogni pagina, rispondeva 404.
+
+La prova che lo impedisce verifica **prima che i due numeri siano diversi**: se
+coincidessero passerebbe comunque, e non dimostrerebbe niente.
+
+### 13.4.2 Moderare la fotografia
+
+Chi amministra può **togliere o sostituire** la fotografia di un giocatore, dal profilo
+stesso o dall'elenco dei giocatori. Serve perché una vetrina pubblica con le facce prima o
+poi ne ospita una che non va bene, e l'unica alternativa sarebbe entrare nel database a
+mano. Togliere non distrugge niente di irreparabile: al suo posto torna l'iniziale e il
+giocatore ne ricarica un'altra. Sostituire passa per lo stesso identico controllo delle
+immagini di chiunque — il file di chi amministra non è più fidato di un altro — e tutte e
+due finiscono nel registro delle azioni.
+
 ### 13.5 La carta globale dell'amministrazione
 
 L'unica pagina che vede tutto il paese insieme: dove sta la gente adesso, chi è in viaggio,
