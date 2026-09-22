@@ -143,7 +143,8 @@ final class MondoController
         return Response::html(view('gioco/mappa', [
             'title'      => 'La carta',
             'stato'      => $stato,
-            'carta'      => Carta::disegno($stato['in_viaggio'] ? null : $cittaQui),
+            'carta'      => Carta::disegno($stato['in_viaggio'] ? null : $cittaQui,
+                                           Carta::genteVisibile($p)),
             'collegamenti' => $collegamenti,
             'citta'      => Mondo::citta(),
             'qui'        => $qui,

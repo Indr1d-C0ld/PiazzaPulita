@@ -111,7 +111,9 @@ spostarsi, di un fattore 3 dichiarato (`mondo.compressione_viaggio`).
 
 La mappa è una **carta stampata d'epoca**, disegnata in SVG dal server: coste vere (da
 Natural Earth, pubblico dominio, semplificate una volta sola), mare a tratteggio, rosa dei
-venti, scala grafica, cartiglio. I colori passano dalle variabili del tema, quindi la stessa
+venti, scala grafica, cartiglio. Sotto ogni città compaiono i **nomi della gente** che
+sta lì; quando due etichette si pesterebbero i piedi, la scritta si scosta e resta legata
+al suo punto da un filo — il punto non si muove mai, quello è geografia. I colori passano dalle variabili del tema, quindi la stessa
 carta si stampa su fondo ecru di giorno e su fondo scuro di notte.
 
 ## Il mercato: il cuore del gioco

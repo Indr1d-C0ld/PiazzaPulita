@@ -604,3 +604,16 @@ footer {
                   font-family: var(--mono); }
 .voci .voce--avviso { border-left-color: var(--rosso); background: var(--carta-3); }
 .voci .voce--avviso strong { color: var(--rosso); }
+
+/* I nomi della gente sulla carta, e il filo che lega un'etichetta spostata al
+   suo punto: senza il filo non si capisce più di quale città si parli. */
+.carta .filo { fill: none; stroke: var(--inchiostro-3); stroke-width: .8; opacity: .55; }
+.carta .tale {
+  font-size: 11px; letter-spacing: .02em; fill: var(--inchiostro-2);
+  paint-order: stroke; stroke: var(--carta); stroke-width: 3; stroke-linejoin: round;
+}
+.carta .tale--io     { fill: var(--rosso); font-weight: 700; }
+.carta .tale--altri  { fill: var(--inchiostro-3); font-style: italic; }
+@media (max-width: 40rem), (pointer: coarse) {
+  .carta .tale { font-size: 12.5px; }
+}

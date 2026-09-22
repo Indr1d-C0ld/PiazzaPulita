@@ -59,21 +59,44 @@ $h = $disegno['vista']['h'];
   <?php foreach ($disegno['citta'] as $c):
       $dx     = $c['lato'] === 'destra' ? 13 : -13;
       $ancora = $c['lato'] === 'destra' ? 'start' : 'end';
+      $ey     = $c['etichetta'];
       $quante = (int) ($presenze[$c['id']] ?? 0);
       $dove   = $collegamenti[$c['id']] ?? null;
   ?>
     <g class="citta <?= $c['qui'] ? 'citta--qui' : '' ?>">
       <?php if ($dove !== null): ?><a href="<?= e($dove) ?>"><?php endif; ?>
+
+        <?php if ($c['spostata']): ?>
+          <!-- Il filo: l'etichetta si è spostata per non accavallarsi, ma deve
+               restare legata al suo punto o non si capisce più di chi parla. -->
+          <path d="M<?= $c['x'] + ($c['lato'] === 'destra' ? 6 : -6) ?> <?= $c['y'] ?>
+                   L<?= $c['x'] + $dx ?> <?= round($ey, 1) ?>" class="filo"/>
+        <?php endif; ?>
+
         <?php if ($c['qui']): ?>
           <circle cx="<?= $c['x'] ?>" cy="<?= $c['y'] ?>" r="11" class="alone"/>
         <?php endif; ?>
         <circle cx="<?= $c['x'] ?>" cy="<?= $c['y'] ?>" r="5.2" class="segno"/>
         <circle cx="<?= $c['x'] ?>" cy="<?= $c['y'] ?>" r="1.9" class="occhio"/>
-        <text x="<?= $c['x'] + $dx ?>" y="<?= $c['y'] + 1.5 ?>" text-anchor="<?= $ancora ?>"
+
+        <text x="<?= $c['x'] + $dx ?>" y="<?= round($ey + 1.5, 1) ?>" text-anchor="<?= $ancora ?>"
               class="nome"><?= e(mb_strtoupper($c['nome'])) ?></text>
-        <text x="<?= $c['x'] + $dx ?>" y="<?= $c['y'] + 14 ?>" text-anchor="<?= $ancora ?>" class="sotto">
+        <text x="<?= $c['x'] + $dx ?>" y="<?= round($ey + 14, 1) ?>" text-anchor="<?= $ancora ?>" class="sotto">
           <?= (int) $c['piazze'] ?> piazze<?= $quante > 0 ? ' · ' . $quante . ($quante === 1 ? ' persona' : ' persone') : '' ?>
         </text>
+
+        <?php foreach ($c['nomi'] as $i => $chi): ?>
+          <text x="<?= $c['x'] + $dx ?>" y="<?= round($ey + 27 + $i * 13, 1) ?>" text-anchor="<?= $ancora ?>"
+                class="tale <?= !empty($chi['io']) ? 'tale--io' : '' ?>"><?php
+            echo !empty($chi['io']) ? '● ' : '○ '; echo e($chi['nome']);
+            if (!empty($chi['nota'])) { echo ' · ' . e($chi['nota']); }
+          ?></text>
+        <?php endforeach; ?>
+        <?php if (($c['altri'] ?? 0) > 0): ?>
+          <text x="<?= $c['x'] + $dx ?>" y="<?= round($ey + 27 + count($c['nomi']) * 13, 1) ?>"
+                text-anchor="<?= $ancora ?>" class="tale tale--altri">e altri <?= (int) $c['altri'] ?></text>
+        <?php endif; ?>
+
       <?php if ($dove !== null): ?></a><?php endif; ?>
     </g>
   <?php endforeach; ?>

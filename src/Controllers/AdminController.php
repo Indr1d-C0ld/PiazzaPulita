@@ -254,8 +254,16 @@ final class AdminController
 
         $perCitta = [];
         $perPiazza = [];
+        $nomi = [];
         foreach ($righe as $r) {
             $perCitta[(int) $r['citta_id']] = ($perCitta[(int) $r['citta_id']] ?? 0) + 1;
+            $nomi[(int) $r['citta_id']][] = [
+                'nome' => (string) $r['username'],
+                'io'   => false,
+                'nota' => $r['arrivo_at'] !== null ? 'in viaggio'
+                          : ($r['carcere_fino_a'] !== null ? 'dentro'
+                          : ($r['ospedale_fino_a'] !== null ? 'ospedale' : null)),
+            ];
             $perPiazza[(int) $r['piazza_id']]['piazza'] = $r['piazza'];
             $perPiazza[(int) $r['piazza_id']]['citta']  = $r['citta'];
             $perPiazza[(int) $r['piazza_id']]['gente'][] = $r;
@@ -263,7 +271,7 @@ final class AdminController
 
         return Response::html(view('admin/carta', [
             'title'     => 'La carta globale',
-            'carta'     => Carta::disegno(null),
+            'carta'     => Carta::disegno(null, $nomi),
             'presenze'  => $perCitta,
             'piazze'    => $perPiazza,
             'quanti'    => count($righe),

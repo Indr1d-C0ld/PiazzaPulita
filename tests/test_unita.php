@@ -26,6 +26,7 @@ use App\Sim\Clock;
 use App\Sim\Geo;
 use App\Sim\Calore;
 use App\Sim\Crescita;
+use App\Sim\Etichette;
 use App\Sim\Scontro;
 use App\Game\Classifica;
 use App\Game\Obiettivi;
@@ -505,7 +506,66 @@ prova('ognuna ha nome, unità e nota', true, (static function (): bool {
 prova('il reddito è fra quelle previste', true, isset(Classifica::GRADUATORIE['reddito']));
 prova('una graduatoria inventata non esiste', false, isset(Classifica::GRADUATORIE['simpatia']));
 
-echo "\nRendering di tutte le viste\n";
+echo "\nEtichette — non si devono accavallare\n";
+// È logica pura, quindi si pretende la PROPRIETÀ invece di guardare il disegno:
+// presi due blocchi qualsiasi, non si sovrappongono. Prima non era vero in due
+// modi diversi: si confrontavano solo le etichette dello stesso lato (e due
+// città vicine che scrivono l'una verso l'altra non si incontravano mai nel
+// confronto), e la spinta ricadeva nello stesso urto perché non teneva conto
+// dello spazio che il riquadro si prende sopra la riga.
+$urti = static function (array $blocchi, array $esiti): int {
+    $box = [];
+    foreach ($blocchi as $i => $b) {
+        [$x1, $x2] = Etichette::estensione($b);
+        $box[] = [$x1, $x2, $esiti[$i]['y'] - 9.75, $esiti[$i]['y'] + $b['alto']];
+    }
+    $n = 0;
+    foreach ($box as $i => $a) {
+        foreach ($box as $j => $c) {
+            if ($i >= $j) { continue; }
+            if ($a[0] < $c[1] && $c[0] < $a[1] && $a[2] < $c[3] && $c[2] < $a[3]) { $n++; }
+        }
+    }
+    return $n;
+};
+
+// Il caso vero che si rompeva: quattro città vicine, blocchi alti e larghi,
+// alcune che scrivono a sinistra e altre a destra.
+$nordOvest = [
+    ['x' => 184.0, 'y' => 219.0, 'largo' => 142.0, 'alto' => 52.0, 'lato' => 'sinistra'],
+    ['x' =>  96.0, 'y' => 250.0, 'largo' => 142.0, 'alto' => 26.0, 'lato' => 'destra'],
+    ['x' => 309.0, 'y' => 295.0, 'largo' =>  76.0, 'alto' => 13.0, 'lato' => 'sinistra'],
+    ['x' => 169.0, 'y' => 302.0, 'largo' => 199.0, 'alto' => 26.0, 'lato' => 'destra'],
+];
+$esiti = Etichette::sbroglia($nordOvest);
+prova('quattro città appiccicate: nessun accavallamento', 0, $urti($nordOvest, $esiti));
+prova('e chi si è spostato lo dichiara', true,
+    (bool) array_filter($esiti, static fn($e) => $e['spostata']));
+prova('nessuna etichetta risale',        true, (static function () use ($nordOvest, $esiti): bool {
+    foreach ($nordOvest as $i => $b) {
+        if ($esiti[$i]['y'] < $b['y'] - 0.01) { return false; }
+    }
+    return true;
+})());
+
+// Chi non tocca nessuno non si muove di un pixel.
+$larghi = [
+    ['x' => 100.0, 'y' => 100.0, 'largo' => 50.0, 'alto' => 13.0, 'lato' => 'destra'],
+    ['x' => 600.0, 'y' => 105.0, 'largo' => 50.0, 'alto' => 13.0, 'lato' => 'destra'],
+];
+$e2 = Etichette::sbroglia($larghi);
+prova('lontane in orizzontale: nessuno si sposta', false, $e2[0]['spostata'] || $e2[1]['spostata']);
+prova('e restano dove volevano',       105.0, $e2[1]['y']);
+
+// Il lato si sceglie sulla LARGHEZZA, non sulla posizione: un'etichetta larga
+// vicino al bordo sinistro deve scrivere a destra, o esce dal foglio.
+prova('etichetta larga a sinistra scrive a destra', 'destra',  Etichette::lato(60.0, 200.0, 760.0));
+prova('etichetta stretta a sinistra scrive a sinistra', 'sinistra', Etichette::lato(300.0, 80.0, 760.0));
+prova('vicino al bordo destro si scrive a sinistra', 'sinistra', Etichette::lato(700.0, 200.0, 760.0));
+prova('se non ci sta da nessuna parte, il lato più largo', 'destra',
+    Etichette::lato(200.0, 900.0, 760.0));
+
+echo "\nRendering di tutte le viste\n";echo "\nRendering di tutte le viste\n";
 
 $utente = [
     'id' => 1, 'username' => 'Mario Rossi', 'email' => 'x@esempio.invalid',
@@ -564,6 +624,26 @@ $listinoFinto = [[
     'carichi' => 0, 'stato_m' => $eq, 'fornitore' => null,
 ]];
 $caricoFinto = [['bene' => $beneFinto, 'quantita' => 10, 'costo' => 220000, 'medio' => 22000, 'ingombro' => 30]];
+
+// La carta per le viste: costruita a mano, perché queste prove girano SENZA
+// database e `Carta::disegno()` le città se le va a leggere.
+$cartaFinta = [
+    'vista' => ['w' => 760.0, 'h' => 1000.0],
+    'terra' => ['M100 100L200 100L200 200Z'],
+    'scala' => ['km' => 200, 'px' => 141.0],
+    'km_per_punto' => 1.42,
+    'citta' => [
+        ['id' => 1, 'codice' => 'MI', 'nome' => 'Milano', 'carattere' => 'consumo',
+         'x' => 184.0, 'y' => 219.0, 'piazze' => 6, 'qui' => true, 'lato' => 'sinistra',
+         'etichetta' => 219.0, 'alto' => 39.0, 'largo' => 142.0, 'spostata' => false,
+         'nomi' => [['nome' => 'Mario Rossi', 'io' => true],
+                    ['nome' => 'Tizio', 'io' => false, 'nota' => 'in viaggio']], 'altri' => 2],
+        ['id' => 2, 'codice' => 'TO', 'nome' => 'Torino', 'carattere' => 'consumo',
+         'x' => 96.0, 'y' => 250.0, 'piazze' => 6, 'qui' => false, 'lato' => 'destra',
+         'etichetta' => 273.0, 'alto' => 13.0, 'largo' => 76.0, 'spostata' => true,
+         'nomi' => [], 'altri' => 0],
+    ],
+];
 
 $statMondo = [
     'iscritti' => 4, 'personaggi' => 3, 'visti24' => 2, 'citta' => 9, 'piazze' => 51, 'nodi' => 273,
@@ -702,11 +782,20 @@ $viste = [
         'depositi' => [], 'movimenti' => [],
     ],
     'gioco/mappa'       => [
-        'title' => 'Mappa', 'stato' => $statoFermo, 'qui' => 1,
-        'cittaJson' => json_encode([['id' => 1, 'codice' => 'MI', 'nome' => 'Milano', 'carattere' => 'consumo',
-                                     'nota' => 'x', 'x' => 1.0, 'y' => 2.0, 'piazze' => 6, 'qui' => true]]),
+        'title' => 'La carta', 'stato' => $statoFermo, 'qui' => 1,
+        'carta' => $cartaFinta, 'collegamenti' => [2 => '#citta-2'],
         'citta' => $citta,
         'destinazioni' => [['citta' => $citta[2], 'sbarco' => $piazze[2], 'km' => 596.0, 'opzioni' => $opzioni]],
+    ],
+    'admin/carta'       => [
+        'title' => 'La carta globale', 'carta' => $cartaFinta,
+        'presenze' => [1 => 2], 'quanti' => 2, 'in_giro' => 1,
+        'piazze' => [1 => ['piazza' => 'Lambrate', 'citta' => 'Milano', 'gente' => [[
+            'id' => 9, 'username' => 'Tizio', 'avatar_file' => null, 'batteria' => 'TRP',
+            'contante' => 3_000_000, 'pulito' => 1_000_000, 'calore' => 12.5, 'profilo' => 3,
+            'arrivo_at' => null, 'carcere_fino_a' => null, 'ospedale_fino_a' => null,
+            'last_seen_at' => '2026-09-22 10:00:00',
+        ]]]],
     ],
     'profilo/pubblico'  => ['title' => 'Profilo', 'p' => $utente, 'mio' => false,
                             'avatar' => 'img/avatar/x.webp'],

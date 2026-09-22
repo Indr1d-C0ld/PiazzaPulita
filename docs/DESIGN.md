@@ -967,6 +967,40 @@ Stivale viene grasso) e restituisce punti; il disegno sta nella vista, dove deve
 > l'unione di array in PHP tiene la chiave di **sinistra**. Il segnaposto «sei qui» non
 > compariva mai, e la carta sembrava giusta.
 
+### 13.1.1 I nomi sulla carta, e come non farli accavallare
+
+Sulla carta compaiono i **nomi della gente**, sotto la città dove si trova. Chi li vede,
+però, non è lo stesso per tutti:
+
+- **la carta dell'amministrazione** li mostra tutti, con nome e stato (in viaggio, dentro,
+  all'ospedale): è la vista di chi amministra, e serve a quello;
+- **la carta del giocatore** mostra **sé stessi**, chi è **nella propria città** (lo si
+  incrocia per strada), la **propria batteria** e chi si è fatto **spiare**. Tutto il resto
+  no, e per lo stesso motivo per cui la chiacchiera è di piazza: sapere dove sta la gente è
+  informazione tattica, e qui l'informazione su quello che succede altrove si paga.
+
+**Il districamento delle etichette** sta in `Sim\Etichette`, modulo puro: entrano
+rettangoli, escono rettangoli, e si prova pretendendo la proprietà («presi due blocchi
+qualsiasi, non si sovrappongono») invece di guardare il disegno e fidarsi. Il punto della
+città **non si muove mai** — quello è geografia — si muove soltanto la scritta, e quando si
+muove resta legata al suo punto da un filo, come sulle carte stampate.
+
+Due errori commessi scrivendolo, tutti e due invisibili a occhio finché non si guarda il
+disegno con quattro città vicine:
+
+1. **Si confrontano i rettangoli, non i lati.** La prima versione raggruppava per lato e
+   confrontava solo le etichette della stessa parte: Milano scriveva a sinistra, Torino a
+   destra, non si incontravano mai nel confronto — e sulla carta finivano una sopra
+   l'altra, perché puntavano l'una verso l'altra.
+2. **La spinta deve rimettere lo spazio che il riquadro si prende sopra la riga**, se no la
+   nuova posizione ricade nello stesso urto e il ciclo gira a vuoto fino a esaurire i
+   tentativi, lasciando l'etichetta dov'era.
+
+E il **lato si sceglie sulla larghezza**, non sulla posizione: un'etichetta larga vicino al
+bordo sinistro deve scrivere verso destra, o esce dal foglio. Con i nomi sotto, il blocco di
+Milano usciva dalla carta — il testo c'era, e non si leggeva. I nomi oltre i diciotto
+caratteri si troncano.
+
 ### 13.2 La vetrina dei presenti
 
 Nella piazza dove sei, chi c'è compare **con la fotografia**, la batteria e il numero di

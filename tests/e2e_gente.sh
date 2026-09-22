@@ -83,6 +83,25 @@ PAGINA=$(a "${BASE_URL}/altri")
 contiene "nella piazza si vede chi c'è"        "${PAGINA}" "${B_NOME}"
 contiene "e si vede in faccia"                  "${PAGINA}" "img/avatar/${FOTO}"
 
+# --- I nomi sulla carta ---------------------------------------------------------
+#
+# Sulla carta del giocatore si vede sé stessi e chi si potrebbe sapere comunque:
+# chi è nella tua città lo incroci per strada. Chi sta dall'altra parte del
+# paese no — sapere dove sta la gente è informazione tattica, e qui
+# l'informazione su quello che succede altrove si paga.
+CARTA=$(a "${BASE_URL}/mappa")
+contiene "sulla carta si vede il proprio nome" "${CARTA}" "${A_NOME}"
+contiene "segnato come «io»"                   "${CARTA}" 'tale--io'
+# Sulla carta i nomi lunghi sono troncati, o sfonderebbero il foglio: si cerca
+# l'inizio, non il nome intero.
+contiene "e chi è nella stessa città"          "${CARTA}" "${B_NOME:0:14}"
+
+dbq "UPDATE personaggi SET piazza_id=${ALTROVE} WHERE id=${BID}" >/dev/null
+CARTA=$(a "${BASE_URL}/mappa")
+manca "chi è lontano non si vede" "${CARTA}" "${B_NOME:0:14}"
+contiene "ma il proprio nome sì" "${CARTA}" "${A_NOME}"
+dbq "UPDATE personaggi SET piazza_id=${QUI} WHERE id=${BID}" >/dev/null
+
 # --- La chiacchiera è DI PIAZZA -------------------------------------------------
 TOK=$(a "${BASE_URL}/altri" | token_da)
 a -o /dev/null -L -X POST "${BASE_URL}/altri/parla" --data-urlencode "_token=${TOK}" \
@@ -152,6 +171,14 @@ consolle user:admin "${A_NOME}" >/dev/null
 PAGINA=$(a "${BASE_URL}/admin/carta")
 contiene "la carta globale elenca la gente" "${PAGINA}" "${B_NOME}"
 contiene "e disegna la cartina"             "${PAGINA}" 'class="carta"'
+# L'admin li vede tutti per nome sulla carta, anche quelli lontani.
+dbq "UPDATE personaggi SET piazza_id=${ALTROVE} WHERE id=${BID}" >/dev/null
+PAGINA=$(a "${BASE_URL}/admin/carta")
+grep -c 'class="tale' <<< "${PAGINA}" | while read -r N; do
+  [[ "${N}" -ge 2 ]] && printf '  \033[0;32mok\033[0m    e i nomi sono scritti sulla cartina\n' \
+                     || printf '  \033[0;31mKO\033[0m    i nomi non sono sulla cartina\n'
+done
+dbq "UPDATE personaggi SET piazza_id=${QUI} WHERE id=${BID}" >/dev/null
 
 TOK=$(a "${BASE_URL}/admin/carta" | token_da)
 a -o /dev/null -L -X POST "${BASE_URL}/admin/carta/scrivi" --data-urlencode "_token=${TOK}" \
