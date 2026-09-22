@@ -3,19 +3,19 @@
 use App\Sim\Viaggio;
 ?>
 <div class="foglio">
-  <span class="occhiello">La rete</span>
-  <h1>La mappa</h1>
+  <span class="occhiello">La carta</span>
+  <h1>Il paese</h1>
   <p class="sommario minuto">
-    Nove città. Non è una carta geografica ma uno schema della rete, come un orario
-    ferroviario: le posizioni sono quelle vere, il resto è tolto perché non serve.
+    Nove città, e le coste vere. Le posizioni sono quelle geografiche: le distanze che
+    leggi qui sotto sono le stesse che paghi in biglietti e in ore.
     <?php if (!$stato['in_viaggio']): ?>
       Sei a <strong><?= e($stato['citta']['nome']) ?></strong>, in <?= e($stato['piazza']['nome']) ?>.
     <?php else: ?>
       Sei in viaggio verso <strong><?= e($stato['piazza']['nome']) ?></strong>.
     <?php endif; ?>
   </p>
-  <canvas id="mappa" width="720" height="900" style="width:100%;max-width:38rem;height:auto;display:block;margin:0 auto"
-          data-citta='<?= e($cittaJson) ?>'></canvas>
+  <?= partial('carta', ['disegno' => $carta, 'collegamenti' => $collegamenti,
+                        'titolo' => $stato['in_viaggio'] ? 'In viaggio' : (string) $stato['citta']['nome']]) ?>
 </div>
 
 <?php if ($stato['in_viaggio']): ?>
@@ -35,7 +35,7 @@ use App\Sim\Viaggio;
         <thead><tr><th>Città</th><th>Si scende a</th><th class="num">km</th><th>Come</th></tr></thead>
         <tbody>
         <?php foreach ($destinazioni as $d): ?>
-          <tr>
+          <tr id="citta-<?= (int) $d['citta']['id'] ?>">
             <td><strong><?= e($d['citta']['nome']) ?></strong>
                 <span class="minuto"><?= e(match ($d['citta']['carattere']) {
                     'porto' => 'porto', 'snodo' => 'snodo', default => 'consumo' }) ?></span></td>

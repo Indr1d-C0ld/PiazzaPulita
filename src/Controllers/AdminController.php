@@ -12,6 +12,9 @@ use App\Core\Posta;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Game\Carta;
+use App\Game\Chiacchiera;
+use App\Game\Legge;
 use App\Game\Mondo;
 use App\Game\SeminaMercato;
 use App\Sim\Clock;
@@ -224,6 +227,113 @@ final class AdminController
         Audit::log('admin.mondo.' . $cosa, Auth::id(), 'piazza', $id ?: null, [], $request->ip());
         Session::flash('success', $esito);
         return redirect('/admin/mondo');
+    }
+
+    /**
+     * La carta globale: dove sta la gente, adesso.
+     *
+     * È la sola pagina del gioco che vede tutto il paese in una volta. Per un
+     * giocatore sarebbe un'informazione che qui si paga (il basista); per chi
+     * amministra è il contrario — senza, per sapere se c'è qualcuno in giro
+     * bisogna interrogare il database a mano.
+     */
+    public function carta(Request $request): Response
+    {
+        $righe = Database::all(
+            "SELECT z.id piazza_id, z.nome piazza, z.citta_id, c.nome citta,
+                    p.id, u.username, u.avatar_file, p.arrivo_at, p.carcere_fino_a, p.ospedale_fino_a,
+                    p.contante, p.pulito, p.calore, p.profilo, u.last_seen_at, b.sigla AS batteria
+               FROM personaggi p
+               JOIN users u ON u.id = p.user_id
+               JOIN piazze z ON z.id = p.piazza_id
+               JOIN citta c ON c.id = z.citta_id
+               LEFT JOIN batterie b ON b.id = p.batteria_id
+              WHERE u.status = 'active'
+              ORDER BY c.nome, z.nome, u.username"
+        );
+
+        $perCitta = [];
+        $perPiazza = [];
+        foreach ($righe as $r) {
+            $perCitta[(int) $r['citta_id']] = ($perCitta[(int) $r['citta_id']] ?? 0) + 1;
+            $perPiazza[(int) $r['piazza_id']]['piazza'] = $r['piazza'];
+            $perPiazza[(int) $r['piazza_id']]['citta']  = $r['citta'];
+            $perPiazza[(int) $r['piazza_id']]['gente'][] = $r;
+        }
+
+        return Response::html(view('admin/carta', [
+            'title'     => 'La carta globale',
+            'carta'     => Carta::disegno(null),
+            'presenze'  => $perCitta,
+            'piazze'    => $perPiazza,
+            'quanti'    => count($righe),
+            'in_giro'   => count(array_filter($righe, static fn($r) => $r['arrivo_at'] !== null)),
+        ]));
+    }
+
+    /**
+     * Scrive a un giocatore, o a tutti.
+     *
+     * Il messaggio arriva DENTRO il gioco, come segnale: è il canale che il
+     * giocatore guarda già, e non chiede di aprire la posta. Volendo parte
+     * anche un'e-mail, che passa dalla coda come tutto il resto.
+     */
+    public function scriviAGiocatore(Request $request): Response
+    {
+        $testo = trim($request->str('testo'));
+        if ($testo === '') {
+            Session::flash('error', 'Il messaggio è vuoto.');
+            return redirect('/admin/carta');
+        }
+        $testo = mb_substr($testo, 0, 220);
+        $aTutti = $request->str('a') === 'tutti';
+        $perEmail = $request->str('email') === '1';
+
+        $destinatari = $aTutti
+            ? Database::all("SELECT p.id, u.email, u.username FROM personaggi p
+                               JOIN users u ON u.id = p.user_id WHERE u.status = 'active'")
+            : Database::all("SELECT p.id, u.email, u.username FROM personaggi p
+                               JOIN users u ON u.id = p.user_id
+                              WHERE p.id = ? AND u.status = 'active'", [$request->int('chi')]);
+
+        if ($destinatari === []) {
+            Session::flash('error', 'Nessun destinatario.');
+            return redirect('/admin/carta');
+        }
+
+        foreach ($destinatari as $d) {
+            Legge::segnale((int) $d['id'], 'avviso', $testo, 3);
+            if ($perEmail) {
+                \App\Core\Posta::accoda(
+                    (string) $d['email'],
+                    'Piazza Pulita — un messaggio per te',
+                    $d['username'] . ",\n\n" . $testo . "\n\n--\nPiazza Pulita",
+                    'avviso_admin'
+                );
+            }
+        }
+
+        Audit::log('admin.messaggio', Auth::id(), $aTutti ? 'tutti' : 'personaggio',
+            $aTutti ? null : $request->int('chi'), ['quanti' => count($destinatari)], $request->ip());
+        Session::flash('success', count($destinatari) === 1
+            ? 'Messaggio recapitato.'
+            : 'Messaggio recapitato a ' . count($destinatari) . ' giocatori.');
+        return redirect('/admin/carta');
+    }
+
+    /** Un avviso appeso in una piazza: lo leggono tutti quelli che ci passano. */
+    public function affiggi(Request $request): Response
+    {
+        $testo = trim($request->str('testo'));
+        $piazza = $request->int('piazza');
+        if ($testo === '' || Mondo::piazza($piazza) === null) {
+            Session::flash('error', 'Serve un testo e una piazza che esista.');
+            return redirect('/admin/carta');
+        }
+        Chiacchiera::avviso($piazza, $testo, 'avviso');
+        Audit::log('admin.affissione', Auth::id(), 'piazza', $piazza, [], $request->ip());
+        Session::flash('success', 'Affisso.');
+        return redirect('/admin/carta');
     }
 
     // --- I giocatori -------------------------------------------------------------

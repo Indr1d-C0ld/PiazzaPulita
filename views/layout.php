@@ -77,7 +77,6 @@ $luce = is_array($u) ? (string) ($u['luce'] ?? 'auto') : 'auto';
 </footer>
 
 <script src="<?= e(asset('js/viaggio.js')) ?>" defer></script>
-<script src="<?= e(asset('js/mappa.js')) ?>" defer></script>
 <script src="<?= e(asset('js/avatar.js')) ?>" defer></script>
 
 </body>

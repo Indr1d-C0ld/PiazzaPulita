@@ -10,6 +10,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Game\Batteria;
+use App\Game\Carta;
 use App\Game\Contabilita;
 use App\Game\Legge;
 use App\Game\Listino;
@@ -127,27 +128,26 @@ final class MondoController
         $qui   = (int) $p['piazza_id'];
         $this->mezzo = Personaggio::mezzoProprio($p);
 
-        // La proiezione la fa il server: il disegno sul Canvas deve solo
-        // scalare dei numeri, non sapere di geodesia.
-        $citta = [];
-        foreach (Mondo::citta() as $id => $c) {
-            [$x, $y] = Geo::proietta($c['lat'], $c['lon'], 42.0, 12.5);
-            $citta[] = [
-                'id' => $id, 'codice' => $c['codice'], 'nome' => $c['nome'],
-                'carattere' => $c['carattere'], 'nota' => $c['nota'],
-                'x' => round($x, 1), 'y' => round($y, 1),
-                'piazze' => count(Mondo::piazzeDi($id)),
-                'qui' => Mondo::piazza($qui)['citta_id'] === $id,
-            ];
+        // La proiezione la fa il server: la vista deve disegnare dei punti,
+        // non sapere di geodesia.
+        $cittaQui = (int) (Mondo::piazza($qui)['citta_id'] ?? 0);
+        $destinazioni = $stato['in_viaggio'] ? [] : $this->destinazioni($qui);
+
+        // Dalla carta si va alla riga del viaggio: cliccare una città porta
+        // dove si decide come arrivarci, che è l'unica cosa che si può fare.
+        $collegamenti = [];
+        foreach ($destinazioni as $d) {
+            $collegamenti[(int) $d['citta']['id']] = '#citta-' . (int) $d['citta']['id'];
         }
 
         return Response::html(view('gioco/mappa', [
-            'title'      => 'La mappa',
+            'title'      => 'La carta',
             'stato'      => $stato,
-            'cittaJson'  => json_encode($citta, JSON_UNESCAPED_UNICODE),
+            'carta'      => Carta::disegno($stato['in_viaggio'] ? null : $cittaQui),
+            'collegamenti' => $collegamenti,
             'citta'      => Mondo::citta(),
             'qui'        => $qui,
-            'destinazioni' => $stato['in_viaggio'] ? [] : $this->destinazioni($qui),
+            'destinazioni' => $destinazioni,
         ]));
     }
 

@@ -205,12 +205,18 @@ verifica "e non si è pagato niente" "100" "$(dbq "SELECT contante FROM personag
 
 # --- La mappa ----------------------------------------------------------------
 PAGINA=$(c "${BASE_URL}/mappa")
-grep -q 'id="mappa"' <<< "${PAGINA}" \
-  && verifica "la mappa ha la tela" "si" "si" \
-  || verifica "la mappa ha la tela" "si" "no"
-grep -q 'data-citta' <<< "${PAGINA}" \
-  && verifica "la mappa porta i dati delle città" "si" "si" \
-  || verifica "la mappa porta i dati delle città" "si" "no"
+# La carta non è più una tela da riempire con JavaScript: è un disegno SVG
+# costruito dal server, con le coste vere. Si verifica quello che c'è adesso —
+# il disegno, la terraferma e i nomi delle città — non quello che c'era prima.
+grep -q '<svg class="carta"' <<< "${PAGINA}" \
+  && verifica "la carta è disegnata" "si" "si" \
+  || verifica "la carta è disegnata" "si" "no"
+grep -q 'class="terra"' <<< "${PAGINA}" \
+  && verifica "con le coste" "si" "si" || verifica "con le coste" "si" "no"
+grep -q 'NAPOLI' <<< "${PAGINA}" \
+  && verifica "e i nomi delle città" "si" "si" || verifica "e i nomi delle città" "si" "no"
+grep -q 'citta--qui' <<< "${PAGINA}" \
+  && verifica "e il segno di dove sei" "si" "si" || verifica "e il segno di dove sei" "si" "no"
 
 # --- Pulizia -----------------------------------------------------------------
 PIAZZAPULITA_CONFIG="${CFG}" php "${ROOT}/bin/_cleanup_test_user.php" "${USER_NAME}" >/dev/null 2>&1

@@ -816,6 +816,7 @@ gioco.
 | **F4** ✔ | Legge: calore, controlli, posti di blocco, fascicoli, perquisizioni, arresti, carcere, avvocati, corruzione | un giocatore che esagera viene visto, avvisato, e preso — **fatta il 19/09/2026** (i pentiti slittano a F5, con l'organico) |
 | **F5** ✔ | Personaggio: attributi, reputazione a due assi, organico con lealtà, pentiti, corrieri, fornitori | la progressione è leggibile su 20 ore di gioco simulato — **fatta il 19/09/2026** |
 | **F6** ✔ | Multigiocatore: PvP e bottino, pubblico nemico, rapine ai carichi, soffiate, spie, batterie, territorio, cronaca | due account che si fanno la guerra in tutti i modi previsti — **fatta il 19/09/2026** |
+| **F8** ✔ | La carta e la gente: cartina disegnata, vetrina dei presenti con la fotografia, chiacchiera di piazza, baratto merce-contro-merce, carta globale dell'amministrazione | due giocatori che si vedono, si parlano e si scambiano roba — **fatta il 22/09/2026** |
 | **F7** ✔ | Rifinitura: obiettivi, quattro classifiche, albo d'oro, statistiche, admin completo, PWA, `balance:report` | un giro di bilanciamento con il rapporto che conferma il tetto di reddito — **fatta il 19/09/2026** |
 
 ---
@@ -940,3 +941,68 @@ mai**. Lo stato di questo gioco sta sul server ed è autoritativo; una pagina se
 cache mostrerebbe un mondo che non esiste più, e un listino vecchio di dieci minuti non è
 degradazione elegante — è una bugia su cui qualcuno prende una decisione. Si tiene da parte
 solo l'immutabile (fogli di stile, script, icone) più una pagina che dice che non c'è linea.
+
+---
+
+## 13. F8 — la carta e la gente
+
+Fino a F7 gli altri giocatori **esistevano nel motore ma non si vedevano**: il mercato era
+condiviso, ci si poteva menare, si teneva il territorio, ma di una persona non si sapeva
+nemmeno che faccia avesse. Qui si aggiungono i due modi civili di incontrarsi, e il paese
+prende la faccia che gli spetta.
+
+### 13.1 La cartina
+
+Non più uno schema di rete: una **carta stampata d'epoca**, disegnata in SVG dal server.
+Le coste vengono da Natural Earth (pubblico dominio), semplificate una volta sola con
+Ramer-Douglas-Peucker in `db/geo/italia.json` — tre contorni, 237 punti, 3,8 KB. Il resto
+è mestiere di cartografia: mare a tratteggio, terra color carta, rosa dei venti, scala
+grafica, cartiglio, pieghe. Tutto il colore passa dalle variabili del tema, quindi la
+stessa carta si stampa su fondo ecru di giorno e su fondo scuro di notte.
+
+`Carta::disegno()` fa solo la proiezione (la stessa correzione del coseno di `Geo`, o lo
+Stivale viene grasso) e restituisce punti; il disegno sta nella vista, dove deve stare.
+
+> **Una trappola da ricordare.** `$base + ['citta' => $citta]` non sostituisce niente:
+> l'unione di array in PHP tiene la chiave di **sinistra**. Il segnaposto «sei qui» non
+> compariva mai, e la carta sembrava giusta.
+
+### 13.2 La vetrina dei presenti
+
+Nella piazza dove sei, chi c'è compare **con la fotografia**, la batteria e il numero di
+pubblico nemico — e accanto tutto quello che gli si può fare, dal baratto alla soffiata.
+
+### 13.3 La chiacchiera è di piazza
+
+Si parla per strada, non al telefono: le voci si leggono **solo stando nella piazza** dove
+sono state dette, e si dimenticano dopo poche ore. Non è una limitazione tecnica ed è la
+scelta di progetto più importante di questa fase: in questo gioco l'informazione sui prezzi
+altrove **si paga** — è il mestiere del basista (§6.3) — e una posta privata a distanza
+zero la regalerebbe a chiunque. Per dire qualcosa a qualcuno bisogna essere dove sta lui.
+
+### 13.4 Il baratto è merce contro merce, mai denaro
+
+Uno scambio libero di contante fra due personaggi sarebbe un tubo che aggira in un colpo
+solo i due freni su cui poggia l'economia: il **tetto di reddito orario** (§2.6) e la
+**capacità oraria dei canali di riciclaggio** (§5), che è il vincolo vero della
+progressione. Chi volesse riciclare userebbe un secondo account come canale gratuito e
+infinito. Merce contro merce no: sposta roba fra due carichi senza creare una lira, e resta
+utile davvero — ti libera di quello che in quella piazza non assorbe nessuno.
+
+Due dettagli che non si vedono ma tengono in piedi il resto:
+
+- **Il costo viaggia con la merce.** Quando dieci unità passano di mano passa anche la
+  quota di costo che avevano addosso, se no il margine di chi vende dopo sarebbe finto e il
+  registro non tornerebbe più.
+- **Le due righe si bloccano sempre nello stesso ordine** (identificativo crescente): due
+  baratti incrociati accettati nello stesso istante, bloccati in ordine diverso, si
+  aspetterebbero a vicenda per sempre.
+
+### 13.5 La carta globale dell'amministrazione
+
+L'unica pagina che vede tutto il paese insieme: dove sta la gente adesso, chi è in viaggio,
+quanto ha in tasca e quanto scotta. Per un giocatore sarebbe informazione che qui si paga;
+per chi amministra è il contrario — senza, per sapere se c'è qualcuno in giro bisogna
+interrogare il database a mano. Da lì si scrive a un giocatore o a tutti (il messaggio
+arriva **dentro il gioco**, come segnale, e l'e-mail è facoltativa) e si **affigge un
+cartello** in una piazza, che compare nella voce marcato come avviso.

@@ -724,10 +724,13 @@ $viste = [
         'title' => 'Chi c\'è', 'p' => $personaggioFinto + ['batteria_id' => null],
         'piazza' => $piazze[1], 'padrone' => null,
         'altri' => [['id' => 9, 'username' => 'Tizio', 'salute' => 100, 'ospedale_fino_a' => null,
-                     'carcere_fino_a' => null, 'profilo' => 2, 'batteria' => null, 'spiato' => 0]],
+                     'carcere_fino_a' => null, 'profilo' => 2, 'batteria' => null, 'spiato' => 0,
+                     'avatar' => null, 'avatar_file' => null]],
         'spiati' => [], 'corse' => [], 'uomini' => [['id' => 3, 'nome' => 'Gino', 'stato' => 'libero']],
         'inOspedale' => false, 'mancano' => 0,
         'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
+        'presenti' => [], 'voci' => [], 'baratti' => [], 'mioCarico' => [],
+        'beni' => [], 'lunghezzaVoce' => 220,
     ],
     'gioco/altri (all\'ospedale, con una spia dentro)' => [
         '__vista' => 'gioco/altri', 'title' => 'Chi c\'è',
@@ -735,7 +738,8 @@ $viste = [
         'piazza' => $piazze[1],
         'padrone' => ['id' => 2, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'dal' => '2026-09-18 10:00:00'],
         'altri' => [['id' => 9, 'username' => 'Tizio', 'salute' => 40, 'ospedale_fino_a' => null,
-                     'carcere_fino_a' => null, 'profilo' => 5, 'batteria' => 'TRP', 'spiato' => 1]],
+                     'carcere_fino_a' => null, 'profilo' => 5, 'batteria' => 'TRP', 'spiato' => 1,
+                     'avatar' => 'img/avatar/x.webp', 'avatar_file' => 'x.webp']],
         'spiati' => [9 => ['spia' => 'Gino', 'nome' => 'Tizio', 'dove' => $piazze[1],
                            'sporco' => 3_000_000, 'pulito' => 1_000_000, 'debito' => 0,
                            'calore' => 42.0, 'uomini' => 2,
@@ -744,6 +748,20 @@ $viste = [
                      'da_piazza' => 'Lambrate', 'a_piazza' => 'Bovisa', 'arrivo_at' => '2026-09-19 18:00:00']],
         'uomini' => [], 'inOspedale' => true, 'mancano' => 7200,
         'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
+        'presenti' => [], 'mioCarico' => [['bene' => $beneFinto, 'quantita' => 12, 'costo' => 100, 'medio' => 8, 'ingombro' => 12]],
+        'beni' => [1 => $beneFinto], 'lunghezzaVoce' => 220,
+        'voci' => [
+            ['id' => 2, 'autore' => 'Tizio', 'testo' => 'Cerco roba buona.', 'genere' => 'voce',
+             'fatto_at' => '2026-09-19 12:00:00', 'avatar_file' => null, 'personaggio_id' => 9, 'piazza_id' => 1],
+            ['id' => 1, 'autore' => 'avviso', 'testo' => 'Domani si chiude per manutenzione.', 'genere' => 'avviso',
+             'fatto_at' => '2026-09-19 09:00:00', 'avatar_file' => null, 'personaggio_id' => null, 'piazza_id' => 1],
+        ],
+        'baratti' => [[
+            'id' => 1, 'da_id' => 9, 'a_id' => 1, 'piazza_id' => 1, 'bene_dato' => 1, 'quanto_dato' => 10,
+            'bene_chiesto' => 2, 'quanto_chiesto' => 4, 'stato' => 'proposto',
+            'proposto_at' => '2026-09-19 12:00:00', 'scade_at' => '2026-09-19 12:30:00', 'chiuso_at' => null,
+            'nome_dato' => 'Fumo', 'nome_chiesto' => 'Acidi', 'da_nome' => 'Tizio', 'a_nome' => 'Mario Rossi',
+        ]],
     ],
     'gioco/cronaca'     => ['title' => 'Cronaca', 'righe' => [
         ['id' => 2, 'genere' => 'scontro', 'testo' => 'Tizio ha alleggerito Caio.',
@@ -838,6 +856,16 @@ prova('il pulsante della foto non nasce spento', false,
 prova('e il modulo accetta i file',              true,
     str_contains($modulo, 'enctype="multipart/form-data"'));
 prova('senza volto si vede l\'iniziale',         true, str_contains($modulo, 'avatar--vuoto'));
+
+// La vetrina dei presenti deve mostrare le facce e la voce di piazza: senza
+// queste due righe il fissaggio potrebbe perdere una chiave e la vista
+// «passerebbe» lo stesso, perché una variabile mancante in PHP è un avviso,
+// non un errore. È già successo con l'avatar.
+$vetrina = View::render('gioco/altri', $viste['gioco/altri (all\'ospedale, con una spia dentro)'] + ['__vista' => null], null);
+prova('la vetrina mostra la faccia di chi c\'è', true, str_contains($vetrina, 'img/avatar/x.webp'));
+prova('e la voce di piazza',                     true, str_contains($vetrina, 'Cerco roba buona.'));
+prova('e distingue l\'avviso dalla voce',        true, str_contains($vetrina, 'voce--avviso'));
+prova('e le proposte di scambio',                true, str_contains($vetrina, 'Acidi'));
 
 foreach ($viste as $nome => $dati) {
     $file = $dati['__vista'] ?? $nome;

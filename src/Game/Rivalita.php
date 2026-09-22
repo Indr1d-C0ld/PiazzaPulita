@@ -489,8 +489,8 @@ final class Rivalita
     public static function quiConMe(int $personaggioId, int $piazzaId): array
     {
         return Database::all(
-            'SELECT p.id, u.username, p.salute, p.ospedale_fino_a, p.carcere_fino_a, p.profilo,
-                    b.sigla AS batteria,
+            'SELECT p.id, u.username, u.avatar_file, p.salute, p.ospedale_fino_a, p.carcere_fino_a,
+                    p.profilo, p.rispetto, p.timore, b.sigla AS batteria,
                     (SELECT COUNT(*) FROM spie s WHERE s.padrone_id = ? AND s.bersaglio_id = p.id
                       AND s.esito = \'dentro\') AS spiato
                FROM personaggi p JOIN users u ON u.id = p.user_id

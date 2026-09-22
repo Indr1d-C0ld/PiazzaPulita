@@ -109,8 +109,10 @@ mezzi, 10 in taxi.
 Il tempo del mondo scorre **1:1** con quello vero. Si comprime solo la noia dello
 spostarsi, di un fattore 3 dichiarato (`mondo.compressione_viaggio`).
 
-La mappa è uno **schema di rete** su Canvas, non una carta geografica: un diagramma da
-orario ferroviario, più onesto di una costa disegnata male.
+La mappa è una **carta stampata d'epoca**, disegnata in SVG dal server: coste vere (da
+Natural Earth, pubblico dominio, semplificate una volta sola), mare a tratteggio, rosa dei
+venti, scala grafica, cartiglio. I colori passano dalle variabili del tema, quindi la stessa
+carta si stampa su fondo ecru di giorno e su fondo scuro di notte.
 
 ## Il mercato: il cuore del gioco
 
@@ -286,6 +288,17 @@ Chi comanda incassa il **4%** su quello che ci trattano gli estranei. È la logi
 mercato applicata alle persone: niente dichiarazioni, solo conseguenze — e un territorio va
 *tenuto*, non preso una volta.
 
+**Ci si vede e ci si parla.** Nella piazza dove sei, chi c'è compare con la **fotografia**,
+la batteria e il numero di pubblico nemico. La **chiacchiera è di piazza**: le voci si
+leggono solo stando lì e si dimenticano in poche ore — non è un limite tecnico, è che
+l'informazione sui prezzi altrove in questo gioco si paga, ed è il mestiere del basista.
+
+**Il baratto è merce contro merce, mai denaro.** Uno scambio di contante sarebbe un tubo
+che aggira in un colpo solo il tetto di reddito e la capacità oraria dei canali di
+riciclaggio — un secondo account diventerebbe una lavanderia gratuita e infinita. Merce
+contro merce sposta roba fra due carichi senza creare una lira, e il costo viaggia con la
+merce, così il primo margine di chi la rivende è vero.
+
 Sopra tutto, **la cronaca**: il notiziario del mondo, uguale per tutti. Senza, metà di quello
 che succede sarebbe invisibile, e un mondo condiviso che non si vede tanto vale non averlo.
 
@@ -408,6 +421,7 @@ bash tests/e2e_legge.sh       # calore, fascicolo, blitz, carcere, difese
 bash tests/e2e_organico.sh    # attributi, uomini, corrieri, pentiti, fornitori
 bash tests/e2e_rivalita.sh    # due giocatori veri: botte, bottino, spie, batterie, pizzo
 bash tests/e2e_rifinitura.sh  # obiettivi, graduatorie, albo d'oro, admin, installabilità
+bash tests/e2e_gente.sh       # vedersi, parlarsi, barattare, e la carta dell'admin
 bash tests/browser_avatar.sh  # il riquadro della foto, in Chromium headless
 bash tests/browser_schermi.sh # telefono e tablet: niente scorrimento laterale, 44px col dito
 ```

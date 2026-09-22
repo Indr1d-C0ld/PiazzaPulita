@@ -512,3 +512,95 @@ footer {
   }
   table.tabella--schede td:last-child { padding-top: .5rem; }
 }
+
+/* --- La cartina -------------------------------------------------------------
+ *
+ * Tutto il colore passa dalle variabili del tema: la stessa carta si stampa su
+ * fondo ecru di giorno e su fondo scuro di notte, senza un secondo disegno. */
+.carta {
+  display: block; width: 100%; max-width: 40rem; height: auto;
+  margin: 1rem auto 0; border-radius: var(--raggio);
+  font-family: var(--serif);
+}
+.carta .mare      { fill: var(--riga); opacity: .5; }
+.carta .onda      { stroke: var(--inchiostro-3); opacity: .75; }
+.carta .reticolo line { stroke: var(--inchiostro-3); stroke-width: .5; opacity: .25; }
+/* La terra è la CARTA, il mare è inchiostro leggero: è il rapporto giusto su
+   una stampa d'epoca, e soprattutto è quello che si distingue da lontano. */
+.carta .terra     { fill: var(--carta); stroke: var(--inchiostro); stroke-width: 1.6;
+                    stroke-linejoin: round; }
+.carta .pieghe line { stroke: var(--inchiostro-3); stroke-width: .6; opacity: .16; }
+.carta .grana     { fill: var(--inchiostro); pointer-events: none; }
+.carta .bordo     { fill: none; stroke: var(--inchiostro-2); stroke-width: 1.6; }
+
+.carta .segno     { fill: var(--carta); stroke: var(--inchiostro); stroke-width: 1.5; }
+.carta .occhio    { fill: var(--inchiostro); }
+.carta .alone     { fill: none; stroke: var(--rosso); stroke-width: 2; opacity: .85; }
+.carta .citta--qui .segno  { stroke: var(--rosso); }
+.carta .citta--qui .occhio { fill: var(--rosso); }
+.carta .nome {
+  font-size: 15px; font-weight: 700; letter-spacing: .08em; fill: var(--inchiostro);
+  /* L'alone è del colore della TERRA: le etichette stanno quasi sempre sopra la
+     terraferma, ed è lì che devono staccare. */
+  paint-order: stroke; stroke: var(--carta); stroke-width: 3.8; stroke-linejoin: round;
+}
+.carta .citta--qui .nome { fill: var(--rosso); }
+.carta .sotto {
+  font-size: 10.5px; letter-spacing: .04em; fill: var(--inchiostro-3);
+  paint-order: stroke; stroke: var(--carta); stroke-width: 3; stroke-linejoin: round;
+}
+.carta a { cursor: pointer; }
+.carta a:hover .segno { fill: var(--rosso); }
+.carta a:hover .nome  { fill: var(--rosso); }
+
+.carta .rosa-cerchio { fill: none; stroke: var(--inchiostro-2); stroke-width: 1; opacity: .7; }
+.carta .rosa-nord    { fill: var(--rosso); }
+.carta .rosa-sud     { fill: var(--inchiostro-2); opacity: .55; }
+.carta .rosa-lettera { font-size: 13px; font-weight: 700; fill: var(--inchiostro-2); }
+
+.carta .scala line      { stroke: var(--inchiostro-2); stroke-width: 1.2; }
+.carta .scala-testo     { font-size: 11px; letter-spacing: .1em; fill: var(--inchiostro-2); }
+.carta .cartiglio rect  { fill: var(--carta-2); stroke: var(--inchiostro-2); stroke-width: 1; opacity: .92; }
+.carta .cartiglio-titolo{ font-size: 19px; font-weight: 700; letter-spacing: .12em; fill: var(--inchiostro); }
+.carta .cartiglio-sotto { font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+                          fill: var(--inchiostro-3); }
+
+/* Su schermo stretto i nomi delle città reggono male: si alzano un po'. */
+@media (max-width: 40rem), (pointer: coarse) {
+  .carta .nome  { font-size: 17px; }
+  .carta .sotto { font-size: 12px; }
+}
+
+/* --- La gente che c'è in piazza --------------------------------------------- */
+.gente { display: grid; gap: .8rem; }
+.tizio {
+  display: flex; gap: .9rem; align-items: flex-start;
+  border: 1px solid var(--riga); border-left: 3px solid var(--riga-2);
+  border-radius: var(--raggio); background: var(--carta-2); padding: .8rem;
+}
+.tizio--fuori { opacity: .6; border-left-color: var(--rosso); }
+.tizio-faccia { width: 72px; height: 72px; flex: 0 0 72px; object-fit: cover; }
+.tizio-faccia.avatar--vuoto { display: grid; place-items: center; font-size: 2rem; }
+.tizio-corpo { flex: 1 1 14rem; min-width: 0; }
+.tizio-azioni { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.tizio-azioni form { margin: 0; }
+.tizio-azioni details { display: inline-block; }
+.tizio-azioni summary { list-style: none; cursor: pointer; display: inline-block; }
+.tizio-azioni summary::-webkit-details-marker { display: none; }
+.baratto { margin-top: .6rem; padding: .7rem; border: 1px dashed var(--riga-2); border-radius: var(--raggio); }
+.baratto .coppia { display: flex; gap: .4rem; }
+.baratto .coppia input[type=number] { width: 5rem; flex: 0 0 auto; }
+.baratto .coppia select { flex: 1 1 auto; min-width: 0; }
+.rapporto { margin-top: .7rem; padding: .6rem .7rem; background: var(--carta-3); border-radius: var(--raggio); }
+
+/* --- La voce di piazza ------------------------------------------------------ */
+.voci { list-style: none; padding: 0; margin: .6rem 0 0; display: grid; gap: .45rem; }
+.voci li {
+  padding: .45rem .6rem; border-left: 2px solid var(--riga-2);
+  background: var(--carta-2); border-radius: 0 var(--raggio) var(--raggio) 0;
+  font-size: .95rem;
+}
+.voci .voce-ora { font-size: .72rem; color: var(--inchiostro-3); margin-right: .5rem;
+                  font-family: var(--mono); }
+.voci .voce--avviso { border-left-color: var(--rosso); background: var(--carta-3); }
+.voci .voce--avviso strong { color: var(--rosso); }

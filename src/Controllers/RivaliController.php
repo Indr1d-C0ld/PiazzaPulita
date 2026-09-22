@@ -9,8 +9,12 @@ use App\Core\GameConfig;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Game\Avatar;
+use App\Game\Baratto;
 use App\Game\Batteria;
+use App\Game\Chiacchiera;
 use App\Game\Cronaca;
+use App\Game\Listino;
 use App\Game\Legge;
 use App\Game\Mondo;
 use App\Game\Organico;
@@ -45,12 +49,26 @@ final class RivaliController
             }
         }
 
+        // La foto di chi è qui: la vetrina serve a poco se non si vede in faccia
+        // nessuno.
+        $presenti = Rivalita::quiConMe((int) $p['id'], $qui);
+        foreach ($presenti as &$uno) {
+            $uno['avatar'] = Avatar::url($uno['avatar_file'] ?? null);
+        }
+        unset($uno);
+
         return Response::html(view('gioco/altri', [
             'title'      => 'Chi c\'è',
             'p'          => $p,
+            'presenti'   => $presenti,
+            'voci'       => Chiacchiera::inPiazza($qui),
+            'baratti'    => Baratto::aperti((int) $p['id']),
+            'mioCarico'  => Listino::carico((int) $p['id']),
+            'beni'       => Listino::beni(),
+            'lunghezzaVoce' => Chiacchiera::LUNGHEZZA_MAX,
             'piazza'     => Mondo::piazza($qui),
             'padrone'    => Batteria::padrone($qui),
-            'altri'      => Rivalita::quiConMe((int) $p['id'], $qui),
+            'altri'      => $presenti,
             'spiati'     => $spiati,
             'corse'      => Rivalita::corseQui((int) $p['id'], $qui),
             'uomini'     => array_values(array_filter(Organico::uomini((int) $p['id']),
@@ -62,6 +80,62 @@ final class RivaliController
                 'soffiata' => GameConfig::int('pvp.soffiata_prezzo', 2_000_000),
             ],
         ]));
+    }
+
+    // --- Parlare e barattare ------------------------------------------------------
+
+    public function parla(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+        if (Legge::inCarcere($p) || Rivalita::inOspedale($p)) {
+            Session::flash('error', 'Da dove sei adesso non ti sente nessuno.');
+            return redirect('/altri');
+        }
+
+        $res = Chiacchiera::di((int) $p['id'], (int) $p['piazza_id'], $request->str('testo'));
+        if (!$res['ok']) {
+            Session::flash('error', $res['error'] ?? 'Non si può.');
+        }
+        return redirect('/altri');
+    }
+
+    public function proponiBaratto(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+
+        $res = Baratto::proponi(
+            (int) $p['id'], $request->int('chi'),
+            $request->int('bene_dato'), $request->int('quanto_dato'),
+            $request->int('bene_chiesto'), $request->int('quanto_chiesto')
+        );
+        Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
+            ? 'Proposta fatta. Adesso tocca a lui.'
+            : ($res['error'] ?? 'Non si può.'));
+        return redirect('/altri');
+    }
+
+    public function rispondiBaratto(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+
+        $id = $request->int('baratto');
+        $cosa = $request->str('risposta');
+        $res = match ($cosa) {
+            'accetta' => Baratto::accetta((int) $p['id'], $id),
+            'ritira'  => Baratto::rifiuta((int) $p['id'], $id, true),
+            default   => Baratto::rifiuta((int) $p['id'], $id),
+        };
+        Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
+            ? match ($cosa) {
+                'accetta' => 'Scambio fatto: guardati il carico.',
+                'ritira'  => 'Proposta ritirata.',
+                default   => 'Hai detto di no.',
+              }
+            : ($res['error'] ?? 'Non si può.'));
+        return redirect('/altri');
     }
 
     public function attacca(Request $request): Response

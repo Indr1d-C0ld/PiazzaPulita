@@ -69,6 +69,9 @@ $router->post('/altri/attacca', [RivaliController::class, 'attacca'], ['active',
 $router->post('/altri/soffiata', [RivaliController::class, 'soffiata'], ['active', 'throttle']);
 $router->post('/altri/infiltra', [RivaliController::class, 'infiltra'], ['active', 'throttle']);
 $router->post('/altri/rapina', [RivaliController::class, 'rapina'], ['active', 'throttle']);
+$router->post('/altri/parla', [RivaliController::class, 'parla'], ['active', 'throttle']);
+$router->post('/altri/baratto', [RivaliController::class, 'proponiBaratto'], ['active', 'throttle']);
+$router->post('/altri/baratto/rispondi', [RivaliController::class, 'rispondiBaratto'], ['active', 'throttle']);
 $router->get('/cronaca', [RivaliController::class, 'cronaca']);
 $router->get('/batteria', [RivaliController::class, 'batteria'], ['active']);
 $router->post('/batteria/fonda', [RivaliController::class, 'fonda'], ['active', 'throttle']);
@@ -103,6 +106,9 @@ $router->get('/admin/utente/{id}', [AdminController::class, 'utente'], ['admin']
 $router->post('/admin/utente', [AdminController::class, 'azioneUtente'], ['admin', 'throttle']);
 $router->get('/admin/mondo', [AdminController::class, 'mondo'], ['admin']);
 $router->post('/admin/mondo', [AdminController::class, 'azioneMondo'], ['admin', 'throttle']);
+$router->get('/admin/carta', [AdminController::class, 'carta'], ['admin']);
+$router->post('/admin/carta/scrivi', [AdminController::class, 'scriviAGiocatore'], ['admin', 'throttle']);
+$router->post('/admin/carta/affiggi', [AdminController::class, 'affiggi'], ['admin', 'throttle']);
 $router->get('/admin/giocatori', [AdminController::class, 'giocatori'], ['admin']);
 $router->post('/admin/giocatori', [AdminController::class, 'azioneGiocatore'], ['admin', 'throttle']);
 $router->get('/admin/posta', [AdminController::class, 'posta'], ['admin']);

@@ -27,7 +27,9 @@ use App\Game\Contabilita;
 use App\Game\Legge;
 use App\Game\Listino;
 use App\Game\Logistica;
+use App\Game\Baratto;
 use App\Game\Batteria;
+use App\Game\Chiacchiera;
 use App\Game\Classifica;
 use App\Game\Cronaca;
 use App\Game\Obiettivi;
@@ -95,6 +97,12 @@ try {
     // I primati: chi tiene una graduatoria, e da quanto. Si guarda a ogni
     // battito ma si CHIUDE un regno solo quando il primo cambia davvero — un
     // primato che cambia ogni cinque minuti non e' un primato.
+    // Le voci di piazza si dimenticano, e le proposte di baratto scadono da
+    // sole: senza, resterebbero in piedi per sempre proposte che nessuno può
+    // più onorare.
+    $lavori['voci_dimenticate'] = $fase('voci_dimenticate', static fn() => Chiacchiera::dimentica(), 0);
+    $lavori['baratti_scaduti']  = $fase('baratti_scaduti', static fn() => Baratto::scadute(), 0);
+
     $lavori['primati'] = $fase('primati', static fn() => Classifica::aggiornaPrimati(),
                                ['cambi' => 0, 'iscritti' => 0]);
 
