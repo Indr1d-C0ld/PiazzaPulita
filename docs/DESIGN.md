@@ -363,6 +363,12 @@ R_effettivo = R_base × (1 + espansione)        con espansione ∈ [0 ; 0,30]
 che dà alla comunità un obiettivo collettivo senza sfondare l'invariante. Facoltativo in
 F2; se costa, si rimanda.
 
+> **Rimandato davvero, e non fatto.** L'audit del 22/09/2026 ha trovato il parametro
+> `mondo.espansione_max` seminato in tabella e letto da nessuno: la meccanica non esiste.
+> Il parametro è stato tolto (migrazione 0013), perché una manopola che non gira è peggio
+> di una manopola che non c'è — chi la trova la cambia e ci mette mezza giornata a capire
+> perché non succede niente. Resta scritto qui come cosa da fare, non come cosa fatta.
+
 #### Verifica
 
 `balance:report` deve stampare tre righe e trattarle come prove, non come statistiche:

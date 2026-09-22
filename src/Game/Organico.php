@@ -209,6 +209,56 @@ final class Organico
         return ['ok' => true];
     }
 
+    /**
+     * Quello che i basisti riferiscono: il listino di una piazza dove non sei.
+     *
+     * **È il mestiere per cui li paghi**, ed è anche il perno dell'economia
+     * dell'informazione di tutto il gioco: sapere i prezzi altrove qui costa —
+     * è il motivo per cui la chiacchiera è di piazza (§13.3) e per cui la carta
+     * del giocatore non mostra dove sta chiunque (§13.1.1). Senza questo, la
+     * regola sarebbe una frase nei commenti e basta.
+     *
+     * Un basista senza piazza assegnata non riferisce niente: va messo da
+     * qualche parte, ed è quella la decisione che vale i suoi soldi.
+     *
+     * @param array<string,mixed> $p il personaggio che chiede
+     * @return list<array{piazza:array<string,mixed>,citta:array<string,mixed>,
+     *                    uomo:string,listino:list<array<string,mixed>>}>
+     */
+    public static function rapportiDeiBasisti(array $p): array
+    {
+        $righe = Database::all(
+            "SELECT id, nome, piazza_id, competenza FROM uomini
+              WHERE personaggio_id = ? AND ruolo = 'basista' AND stato <> 'sparito'
+                AND piazza_id IS NOT NULL
+              ORDER BY id",
+            [(int) $p['id']]
+        );
+
+        $fuori = [];
+        $visti = [];
+        foreach ($righe as $u) {
+            $piazzaId = (int) $u['piazza_id'];
+            // Due basisti nella stessa piazza non raddoppiano niente: si paga
+            // due volte lo stesso rapporto, ed è giusto che si veda una volta.
+            if (isset($visti[$piazzaId]) || $piazzaId === (int) $p['piazza_id']) {
+                continue;
+            }
+            $visti[$piazzaId] = true;
+            $piazza = Mondo::piazza($piazzaId);
+            if ($piazza === null) {
+                continue;
+            }
+            $fuori[] = [
+                'piazza'  => $piazza,
+                'citta'   => Mondo::cittaDi($piazzaId),
+                'uomo'    => (string) $u['nome'],
+                'listino' => Listino::perPiazza($piazzaId, $p),
+            ];
+        }
+        return $fuori;
+    }
+
     // --- I corrieri ---------------------------------------------------------------
 
     /**

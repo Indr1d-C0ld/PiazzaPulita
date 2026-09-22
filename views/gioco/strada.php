@@ -223,6 +223,43 @@ foreach ($carico ?? [] as $c) { $carico_per_bene[(int) $c['bene']['id']] = (int)
     </div>
   <?php endif; ?>
 
+  <?php if (!empty($basisti)): ?>
+    <div class="foglio">
+      <span class="occhiello">Il giro delle voci</span>
+      <h2 style="margin-top:0">Quello che riferiscono i tuoi basisti</h2>
+      <p class="sommario minuto">
+        I prezzi di una piazza dove non sei. È l'unico modo di saperli senza andarci, e si
+        paga a ore: è il mestiere per cui li tieni lì.
+      </p>
+      <?php foreach ($basisti as $r): ?>
+        <h3 style="margin:1rem 0 .3rem"><?= e($r['piazza']['nome']) ?>
+          <span class="minuto"><?= e($r['citta']['nome'] ?? '') ?> · riferisce <?= e($r['uomo']) ?></span></h3>
+        <?php if ($r['listino'] === []): ?>
+          <p class="minuto">Lì non gira niente.</p>
+        <?php else: ?>
+          <div class="tabella-avvolgi">
+            <table class="tabella tabella--schede">
+              <thead><tr><th>Merce</th><th class="num">Compri a</th><th class="num">Vendi a</th>
+                         <th class="num">Giacenza</th><th class="num">Assorbe</th></tr></thead>
+              <tbody>
+              <?php foreach ($r['listino'] as $v): ?>
+                <tr>
+                  <td><strong><?= e($v['bene']['nome']) ?></strong>
+                      <span class="minuto">(<?= e($v['bene']['unita']) ?>)</span></td>
+                  <td class="num" data-etichetta="Compri a"><?= e(lire($v['acquisto'])) ?></td>
+                  <td class="num" data-etichetta="Vendi a"><?= e(lire($v['vendita'])) ?></td>
+                  <td class="num" data-etichetta="Giacenza"><?= e(quantita($v['offerta'])) ?></td>
+                  <td class="num" data-etichetta="Assorbe"><?= e(quantita($v['domanda'])) ?></td>
+                </tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+
   <div class="foglio">
     <span class="occhiello">Qui intorno · <?= e($citta['nome']) ?></span>
     <h2 style="margin-top:0">Dove si va da qui</h2>

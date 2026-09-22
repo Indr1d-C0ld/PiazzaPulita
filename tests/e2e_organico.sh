@@ -191,6 +191,30 @@ if [[ -n "${BASSO}" ]]; then
   fi
 fi
 
+# --- Il basista riferisce da lontano ------------------------------------------------
+#
+# È il mestiere per cui lo si paga, e per un pezzo non faceva NIENTE: il suo
+# effetto veniva raccolto da `Organico::effetti()` e non lo leggeva nessuno. Un
+# audit l'ha trovato confrontando quello che il README promette con quello che
+# il codice consuma davvero.
+LONTANO=$(dbq "SELECT id FROM piazze WHERE citta_id <> (SELECT citta_id FROM piazze WHERE id=${QUI}) LIMIT 1")
+NOME_LONTANO=$(dbq "SELECT nome FROM piazze WHERE id=${LONTANO}")
+PAGINA=$(c "${BASE_URL}/strada")
+grep -q "riferiscono i tuoi basisti" <<< "${PAGINA}" \
+  && verifica "senza basisti non si sa niente di lontano" "no" "si" \
+  || verifica "senza basisti non si sa niente di lontano" "no" "no"
+
+dbq "INSERT INTO uomini (personaggio_id,nome,ruolo,competenza,lealta,stipendio_ora,stato,piazza_id,assunto_at,pagato_fino_a,agg_a)
+     VALUES (${PID},'Gennaro','basista',55,80,9000,'libero',${LONTANO},NOW(),DATE_ADD(NOW(3),INTERVAL 2 DAY),NOW(3))" >/dev/null
+PAGINA=$(c "${BASE_URL}/strada")
+grep -q "riferiscono i tuoi basisti" <<< "${PAGINA}" \
+  && verifica "col basista si vede il listino di dove sta" "si" "si" \
+  || verifica "col basista si vede il listino di dove sta" "si" "no"
+grep -q "${NOME_LONTANO}" <<< "${PAGINA}" \
+  && verifica "ed è proprio la piazza dove l'hai messo" "si" "si" \
+  || verifica "ed è proprio la piazza dove l'hai messo" "si" "no"
+dbq "DELETE FROM uomini WHERE personaggio_id=${PID} AND ruolo='basista'" >/dev/null
+
 # --- Il pentito --------------------------------------------------------------------
 dbq "UPDATE uomini SET lealta=15 WHERE personaggio_id=${PID};
      DELETE FROM fascicoli WHERE personaggio_id=${PID}" >/dev/null

@@ -244,7 +244,7 @@ fedele.
 | Vedetta | Sta in una piazza e ti avvisa: lì i controlli calano |
 | Contabile | Fa girare più denaro nei canali che hai |
 | Riciclatore | Tratta meglio con chi lava: la commissione scende |
-| Basista | Ti dice i prezzi di una piazza dove non sei |
+| Basista | Ti dice i prezzi di una piazza dove non sei: mettilo da qualche parte e il suo listino compare sulla tua strada |
 | Guardia | Ti sta dietro: in un controllo si perde meno roba |
 
 Chi non viene pagato smette di volerti bene, e **il giorno che ti prendono parla**: è il
@@ -477,6 +477,7 @@ Per il bilanciamento ci sono tre strumenti:
 
 ```bash
 php bin/console.php balance:report        # l'invariante del tetto, trattato come una prova
+php bin/console.php audit                 # coerenza: parametri, foto, orfani, battito
 php bin/console.php avatar:verifica       # fotografie: banca dati contro disco
 php bin/_simula_principiante.php 12 NA    # un principiante contro il motore vero
 PIAZZAPULITA_CONFIG=config/config.php \

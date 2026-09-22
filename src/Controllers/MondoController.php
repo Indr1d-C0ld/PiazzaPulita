@@ -16,6 +16,7 @@ use App\Game\Legge;
 use App\Game\Listino;
 use App\Game\Logistica;
 use App\Game\Mondo;
+use App\Game\Organico;
 use App\Game\Personaggio;
 use App\Game\Rivalita;
 use App\Sim\Geo;
@@ -75,6 +76,9 @@ final class MondoController
                          * max(1, \App\Core\GameConfig::int('deposito.anticipo_ore', 24)),
             'conti'   => Contabilita::stato($p),
             'calore'  => Legge::calorePersonale($p),
+            // Quello che i basisti riferiscono da dove li hai messi: è il
+            // mestiere per cui li paghi.
+            'basisti' => $stato['in_viaggio'] ? [] : Organico::rapportiDeiBasisti($p),
         ]));
     }
 

@@ -26,7 +26,8 @@ declare(strict_types=1);
  *   php bin/console.php mondo:tratte [citta]            tempi e costi da una citta'
  *   php bin/console.php dove         <username>         dov'e' un giocatore
  *   php bin/console.php personaggio:cancella <username>  ricomincia da capo (conferma)
- *   php bin/console.php avatar:verifica [--ripara]      fotografie: banca dati contro disco
+ *   php bin/console.php audit                           coerenza: parametri, foto, orfani, battito
+  php bin/console.php avatar:verifica [--ripara]      fotografie: banca dati contro disco
   php bin/console.php mercato:semina [--conserva]     costruisce il mercato dal tetto
  *   php bin/console.php mercato:stato [piazza]          il listino di una piazza
  *   php bin/console.php balance:report                  il controllo di bilanciamento
@@ -341,6 +342,101 @@ try {
                 ['personaggio' => (int) $p['id'], 'dove' => $dove['citta'] ?? '?', 'via' => 'console']);
 
             out('Cancellato. Al prossimo accesso ' . $u['username'] . ' risceglie la citta\'.');
+            break;
+
+        case 'audit':
+            // Un audit a mano si fa una volta e si dimentica; un comando si
+            // rilancia. Qui stanno le verifiche che non guardano il GIOCO — per
+            // quelle ci sono `balance:report` e le prove — ma la COERENZA fra le
+            // parti: configurazione contro codice, disco contro banca dati,
+            // righe orfane. Sono tutte cose che non rompono niente subito, e
+            // proprio per questo marciscono in silenzio.
+            $rilievi = 0;
+            out('Audit della coerenza — ' . fmt_dt(time()));
+
+            out('');
+            out('1. PARAMETRI DI GIOCO (la tabella contro il codice)');
+            $inTabella = [];
+            foreach (Database::all('SELECT ckey FROM game_config') as $c) {
+                $inTabella[(string) $c['ckey']] = true;
+            }
+            $letti = [];
+            foreach (['src', 'bin', 'views'] as $d) {
+                $dir = ($GLOBALS['__project_root'] ?? dirname(__DIR__)) . '/' . $d;
+                if (!is_dir($dir)) { continue; }
+                foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir)) as $f) {
+                    if ($f->getExtension() !== 'php') { continue; }
+                    if (preg_match_all('/GameConfig::(?:get|int|bool)\(\s*[\x27"]([a-z0-9_.]+)[\x27"]/',
+                            (string) file_get_contents($f->getPathname()), $m)) {
+                        foreach ($m[1] as $k) { $letti[$k] = true; }
+                    }
+                }
+            }
+            $morte  = array_diff(array_keys($inTabella), array_keys($letti));
+            $assenti = array_diff(array_keys($letti), array_keys($inTabella));
+            printf("   in tabella %d · letti dal codice %d\n", count($inTabella), count($letti));
+            foreach ($morte as $k) {
+                $rilievi++;
+                out('   MORTA (nessuno la legge: cambiarla non fa niente): ' . $k);
+            }
+            foreach ($assenti as $k) {
+                out('   assente dalla tabella (si usa il valore di ripiego): ' . $k);
+            }
+            if (!$morte && !$assenti) { out('   tutto corrisponde.'); }
+
+            out('');
+            out('2. FOTOGRAFIE (banca dati contro disco)');
+            $dirFoto = ($GLOBALS['__project_root'] ?? dirname(__DIR__)) . '/assets/img/avatar';
+            $appese = 0;
+            foreach (Database::all("SELECT username, avatar_file FROM users
+                                     WHERE avatar_file IS NOT NULL AND avatar_file <> ''") as $u) {
+                if (!is_file($dirFoto . '/' . basename((string) $u['avatar_file']))) {
+                    $appese++; $rilievi++;
+                    out('   APPESA: ' . $u['username'] . ' → file mancante');
+                }
+            }
+            printf("   %s · %d riferimenti appesi\n", $dirFoto, $appese);
+
+            out('');
+            out('3. RIGHE ORFANE');
+            $orfane = [
+                'batterie senza capo'      => 'SELECT COUNT(*) n FROM batterie b
+                                                LEFT JOIN personaggi p ON p.id = b.capo_id WHERE p.id IS NULL',
+                'territori senza batteria' => 'SELECT COUNT(*) n FROM territori
+                                                WHERE batteria_id IS NOT NULL AND batteria_id NOT IN (SELECT id FROM batterie)',
+                'carico senza personaggio' => 'SELECT COUNT(*) n FROM carico c
+                                                LEFT JOIN personaggi p ON p.id = c.personaggio_id WHERE p.id IS NULL',
+                'baratti eterni'           => "SELECT COUNT(*) n FROM baratti
+                                                WHERE stato = 'proposto' AND scade_at < DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                'voci mai dimenticate'     => 'SELECT COUNT(*) n FROM chiacchiere
+                                                WHERE fatto_at < DATE_SUB(NOW(), INTERVAL 7 DAY)',
+                'personaggi senza utente'  => 'SELECT COUNT(*) n FROM personaggi p
+                                                LEFT JOIN users u ON u.id = p.user_id WHERE u.id IS NULL',
+            ];
+            foreach ($orfane as $che => $sql) {
+                $n = (int) (Database::first($sql)['n'] ?? 0);
+                if ($n > 0) { $rilievi++; printf("   %-28s %d  ← da guardare\n", $che, $n); }
+                else        { printf("   %-28s %d\n", $che, $n); }
+            }
+
+            out('');
+            out('4. IL BATTITO');
+            $ultimo = Database::first('SELECT started_at, ok, duration_ms FROM tick_runs ORDER BY id DESC LIMIT 1');
+            if ($ultimo === null) {
+                $rilievi++; out('   MAI ESEGUITO: il mondo è fermo. Manca la riga di cron?');
+            } else {
+                $eta = time() - strtotime((string) $ultimo['started_at']);
+                printf("   ultimo %s (%d s fa, %d ms, %s)\n", fmt_dt($ultimo['started_at']), $eta,
+                    (int) $ultimo['duration_ms'], ((int) $ultimo['ok']) === 1 ? 'ok' : 'FALLITO');
+                if ($eta > 300) { $rilievi++; out('   FERMO DA PIÙ DI CINQUE MINUTI.'); }
+                if (((int) $ultimo['ok']) !== 1) { $rilievi++; }
+            }
+            $falliti = (int) (Database::first('SELECT COUNT(*) n FROM tick_runs
+                               WHERE ok = 0 AND started_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)')['n'] ?? 0);
+            printf("   battiti falliti nelle 24 h: %d\n", $falliti);
+
+            out('');
+            out($rilievi === 0 ? 'Nessun rilievo.' : $rilievi . ' rilievi da guardare.');
             break;
 
         case 'avatar:verifica':

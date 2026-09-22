@@ -48,6 +48,13 @@ $attributi = [
     Sono l'unica cosa del gioco che non si compra: si sbloccano col rispetto, e chiedono
     un lotto minimo. Scontano il prezzo di piazza, non lo sostituiscono.
   </p>
+  <?php if (!empty($prossimoFornitore)): ?>
+    <p class="minuto">
+      Il prossimo che vorrà parlarti è <strong><?= e($prossimoFornitore['nome']) ?></strong>:
+      chiede <?= (int) $prossimoFornitore['rispetto_min'] ?> di rispetto, e tu sei a
+      <?= e(number_format((float) $p['rispetto'], 1, ',', '.')) ?>.
+    </p>
+  <?php endif; ?>
   <div class="tabella-avvolgi">
     <table class="tabella">
       <thead><tr><th>Chi</th><th>Fascia</th><th class="num">Sconto</th><th class="num">Da</th><th>Serve</th></tr></thead>

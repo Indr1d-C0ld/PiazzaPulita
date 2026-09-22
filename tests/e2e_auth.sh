@@ -148,6 +148,16 @@ grep -q "Bentornato" <<< "${PAGINA}" \
   && verifica "strada irraggiungibile senza conferma" "si" "si" \
   || verifica "strada irraggiungibile senza conferma" "si" "no"
 
+# La cronaca fa i NOMI di chi ha fatto cosa e dove: si legge da dentro, come i
+# profili. In vetrina restano classifica, statistiche e albo, che raccontano il
+# mondo senza dire dove sta la gente adesso.
+verifica "la cronaca non è in vetrina" "302" \
+  "$(curl -s -k -H "Host: ${HOST_HDR}" -o /dev/null -w '%{http_code}' "${BASE_URL}/cronaca")"
+for U in /classifica /statistiche /albo /regole; do
+  verifica "ma ${U} sì" "200" \
+    "$(curl -s -k -H "Host: ${HOST_HDR}" -o /dev/null -w '%{http_code}' "${BASE_URL}${U}")"
+done
+
 # 5. Gettone di verifica dalla coda di posta.
 # La posta non parte al momento dell'iscrizione: entra in coda e la spedisce il
 # battito. Qui la coda la si smista a mano, altrimenti la prova aspetterebbe il

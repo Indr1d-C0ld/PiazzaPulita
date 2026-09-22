@@ -707,7 +707,7 @@ $viste = [
                             'listino' => $listinoFinto, 'carico' => $caricoFinto,
                             'ingombro' => 30, 'capienza' => 80,
                             'deposito' => null, 'inDeposito' => [], 'affitto' => 288000,
-                            'conti' => $contiFinti, 'calore' => 7.0],
+                            'conti' => $contiFinti, 'calore' => 7.0, 'basisti' => []],
     'gioco/strada (col deposito)' => ['__vista' => 'gioco/strada', 'title' => 'La strada',
                             'stato' => $statoFermo, 'vicine' => [], 'altri' => [],
                             'listino' => $listinoFinto, 'carico' => $caricoFinto,
@@ -716,12 +716,14 @@ $viste = [
                             'calore' => 55.0,
                             'deposito' => ['id' => 1, 'capienza' => 5000, 'pagato_fino_a' => '2026-09-20 10:00:00'],
                             'inDeposito' => [['bene' => $beneFinto, 'quantita' => 40, 'costo' => 880000,
-                                              'medio' => 22000, 'ingombro' => 120]]],
+                                              'medio' => 22000, 'ingombro' => 120]],
+                            'basisti' => [['piazza' => $piazze[2], 'citta' => $citta[2],
+                                           'uomo' => 'Gennaro', 'listino' => $listinoFinto]]],
     'gioco/strada (piazza morta)' => ['__vista' => 'gioco/strada', 'title' => 'La strada',
                             'stato' => $statoFermo, 'vicine' => [], 'altri' => [],
                             'listino' => [], 'carico' => [], 'ingombro' => 0, 'capienza' => 80,
                             'deposito' => null, 'inDeposito' => [], 'affitto' => 288000,
-                            'conti' => $contiFinti, 'calore' => 0.0],
+                            'conti' => $contiFinti, 'calore' => 0.0, 'basisti' => []],
     'gioco/strada@viaggio' => null,  // sostituita sotto: stessa vista, stato diverso
     'profilo/mio'       => ['title' => 'Profilo', 'utente' => $utente, 'notaMax' => 500,
                             'avatar' => 'img/avatar/x.webp', 'lato' => 320],
@@ -743,7 +745,7 @@ $viste = [
         'ingaggio' => 8, 'inCarcere' => false,
     ],
     'gioco/personaggio (nudo)' => [
-        '__vista' => 'gioco/personaggio', 'title' => 'Tu',
+        '__vista' => 'gioco/personaggio', 'title' => 'Tu', 'prossimoFornitore' => null,
         'p' => $personaggioFinto + ['trattativa' => 0.0, 'fiuto' => 0.0, 'sangue_freddo' => 0.0,
             'organizzazione' => 0.0, 'credito' => 0.0, 'rispetto' => 0.0, 'timore' => 0.0],
         'uomini' => [], 'tetto' => 1, 'stipendi' => 0, 'corse' => [],
@@ -767,6 +769,7 @@ $viste = [
         'calore' => 0.0, 'caloreParole' => Calore::aParole(0), 'piazza' => $piazze[1],
         'calorePiazza' => 0.0, 'rischio' => 0.0, 'rischioBlocco' => 0.0,
         'fascicolo' => null, 'segnali' => [], 'inCarcere' => true, 'mancano' => 7200,
+        'prossimoFornitore' => ['nome' => 'Il calabrese', 'rispetto_min' => 35],
         'prezzi' => ['avvocato' => 4000000, 'bustarella' => 2500000], 'soglia' => 100,
     ],
     'gioco/affari'      => [
@@ -972,6 +975,15 @@ $suDiMe   = View::render('profilo/pubblico', ['title' => 'x', 'p' => $utente, 'm
 prova('chi amministra vede i comandi sulla foto',  true,  str_contains($daAdmin, 'moderazione'));
 prova('un giocatore comune no',                    false, str_contains($daNormale, 'moderazione'));
 prova('e nemmeno sul proprio profilo',             false, str_contains($suDiMe, 'moderazione'));
+
+// Il basista deve comparire sulla strada con il listino della piazza dove sta:
+// e' il mestiere per cui lo si paga, e per un pezzo non faceva NIENTE — il suo
+// effetto era raccolto e mai letto da nessuno.
+$conBasista = View::render('gioco/strada', $viste['gioco/strada (col deposito)'] + ['__vista' => null], null);
+prova('il basista riferisce da dove sta',  true, str_contains($conBasista, 'riferiscono i tuoi basisti'));
+prova('e si vede chi lo riferisce',        true, str_contains($conBasista, 'Gennaro'));
+$senzaBasista = View::render('gioco/strada', $viste['gioco/strada'] + ['__vista' => null], null);
+prova('senza basisti non compare niente', false, str_contains($senzaBasista, 'riferiscono i tuoi basisti'));
 
 foreach ($viste as $nome => $dati) {
     $file = $dati['__vista'] ?? $nome;

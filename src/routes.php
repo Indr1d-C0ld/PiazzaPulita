@@ -72,7 +72,10 @@ $router->post('/altri/rapina', [RivaliController::class, 'rapina'], ['active', '
 $router->post('/altri/parla', [RivaliController::class, 'parla'], ['active', 'throttle']);
 $router->post('/altri/baratto', [RivaliController::class, 'proponiBaratto'], ['active', 'throttle']);
 $router->post('/altri/baratto/rispondi', [RivaliController::class, 'rispondiBaratto'], ['active', 'throttle']);
-$router->get('/cronaca', [RivaliController::class, 'cronaca']);
+// La cronaca fa i NOMI di chi ha fatto cosa e dove: si legge da dentro, come i
+// profili. In vetrina restano classifica, statistiche e albo, che raccontano il
+// mondo senza dire dove sta la gente adesso.
+$router->get('/cronaca', [RivaliController::class, 'cronaca'], ['active']);
 $router->get('/batteria', [RivaliController::class, 'batteria'], ['active']);
 $router->post('/batteria/fonda', [RivaliController::class, 'fonda'], ['active', 'throttle']);
 $router->post('/batteria/entra', [RivaliController::class, 'entra'], ['active', 'throttle']);

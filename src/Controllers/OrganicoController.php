@@ -40,6 +40,10 @@ final class OrganicoController
             'piazze'   => Mondo::piazze(),
             'ingaggio' => GameConfig::int('organico.ingaggio', 8),
             'inCarcere' => Legge::inCarcere($p),
+            // Il prossimo che vorrà parlarti: `Fornitori::prossimo()` esisteva
+            // e non lo chiamava nessuno, quindi il rispetto guadagnato non
+            // aveva un traguardo visibile.
+            'prossimoFornitore' => Fornitori::prossimo($p),
         ]));
     }
 
