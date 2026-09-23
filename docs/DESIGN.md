@@ -879,7 +879,9 @@ Una volta su quattro la registrano, e le prove se le prende chi ha chiamato.
 **La spia**: un proprio uomo mandato dentro casa d'altri (3 milioni, e l'uomo lo si perde
 comunque). Finché non la scoprono si vede quello che vede lei — contante, pulito, debito,
 calore, uomini, carico. Quando la scoprono, quattro esiti come nell'originale: uccisa,
-scappata, voltafaccia, o semplicemente finita.
+torturata (chi era spiato viene a sapere il nome di chi l'ha mandata), scappata,
+voltafaccia (le prove finiscono nel fascicolo del padrone). Soffiata e spia si fanno a chi
+è nella propria piazza, e non dal carcere o dall'ospedale (§14).
 
 **La rapina al carico**: le corse dei corrieri altrui che passano per la piazza si possono
 fermare. Non manda nessuno all'ospedale — è il modo di farsi male a vicenda che lascia
@@ -889,7 +891,9 @@ tutti in piedi — ma scotta lo stesso.
 contante e ne preleva solo il capo. Il territorio **non si conquista premendo un
 pulsante**: ogni lira movimentata in una piazza lascia punti di presenza alla batteria di
 chi l'ha movimentata, la presenza si dimezza ogni 72 ore, e sopra i 150 punti la piazza
-passa. Chi comanda incassa il 4 % su quello che ci trattano gli estranei. È la stessa
+passa. Chi comanda incassa il 4 % su quello che ci trattano gli estranei. In una batteria
+**si entra se il capo dice sì** (§14): il capo accoglie o respinge le domande, manda via chi
+vuole e passa la mano; se sparisce, comanda il più rispettato dei suoi. È la stessa
 logica del mercato applicata alle persone: niente dichiarazioni, solo conseguenze di quello
 che si è fatto davvero — e un territorio va **tenuto**, non preso una volta.
 
@@ -1070,3 +1074,82 @@ per chi amministra è il contrario — senza, per sapere se c'è qualcuno in gir
 interrogare il database a mano. Da lì si scrive a un giocatore o a tutti (il messaggio
 arriva **dentro il gioco**, come segnale, e l'e-mail è facoltativa) e si **affigge un
 cartello** in una piazza, che compare nella voce marcato come avviso.
+
+---
+
+## 14. L'audit del 23/09/2026 — la fila, e le regole che mancavano
+
+Un audit completo, fatto leggendo ogni modulo di gioco riga per riga e poi provando le
+cose **nello stesso istante** invece che una alla volta. Le prove funzionali erano tutte
+verdi; il difetto grosso stava dove nessuna di loro guardava.
+
+### 14.1 Una fila per giocatore
+
+Il gioco gira in processi che non si parlano: il battito, e una richiesta web per clic —
+più d'una se si gioca da due dispositivi. Molte azioni leggevano un saldo, facevano il conto
+e **riscrivevano il risultato**, senza bloccare niente. Provato con dodici sessioni vere
+dello stesso giocatore:
+
+- il lavaggio maturato veniva **accreditato due volte** (32.500 lire pulite invece di 16.250);
+- il capo di una batteria **prelevava dieci milioni da una cassa di cinque**, e la cassa
+  restava a meno cinque;
+- due aggressori **si prendevano entrambi** gli otto milioni della stessa vittima.
+
+Per costruzione succedevano anche: una restituzione all'usuraio annullata dal battito, il
+calore di un'operazione cancellato dal raffreddamento, le prove smontate dall'avvocato
+rimesse dal battito (quattro milioni pagati per niente), una corsa di corriere rapinata
+**e** consegnata al deposito, due fascicoli aperti insieme (e due blitz), il pizzo versato
+intero alla cassa di chi comanda anche quando al giocatore se ne toglieva meno.
+
+La regola adesso è una sola, e sta in `Fila`: **prima si blocca la riga del personaggio,
+poi il resto**; se i personaggi sono due, in ordine di id. La riga di `personaggi` fa da
+lucchetto per tutto quello che è suo. Dove il battito riporta ad adesso righe che anche le
+pagine toccano — mercati, calore, presenze sul territorio — scrive solo se la riga è ancora
+quella che ha letto: un ordine passato in mezzo ha già portato la riga ad adesso, e
+riscriverla col valore di prima **cancellava l'ordine dal mercato** (la merce tornava sul
+banco e il prezzo non si muoveva: una falla nel tetto del reddito che si apriva una volta al
+minuto). Un fascicolo aperto per persona lo garantisce il database (migrazione 0014).
+
+`tests/e2e_corse.sh` rifà le corse con dieci sessioni e il battito in mezzo, e controlla
+gli invarianti; contro il codice di prima falliva sette volte.
+
+### 14.2 Regole che la pagina rispettava e il server no
+
+- **La batteria si chiedeva con un clic** e nessuno poteva mandarti via: il pizzo si evitava
+  entrando nella batteria che comanda la piazza, e chi entrava diventava intoccabile per i
+  suoi membri. Adesso si fa domanda e decide il capo (migrazione 0015), che può anche
+  cacciare e **passare la mano** — cosa che il messaggio di `esci()` chiedeva da sempre ma
+  che non si poteva fare. Se il capo viene cancellato, la batteria passa al più rispettato.
+- **Soffiata e spia** si potevano fare, con una richiesta a mano, contro chiunque ovunque e
+  dal carcere. Adesso a chi è nella tua piazza, e da libero e in piedi.
+- **Dal carcere** si ingaggiavano uomini, si mandavano corrieri e si spostavano vedette; dal
+  carcere e dall'ospedale si aprivano depositi e ci si spostava merce. La pagina non lo
+  offriva; il server ora lo rifiuta.
+- **Una rapina in viaggio**: `piazza_id` durante il viaggio è già la destinazione, e si
+  rapinava all'arrivo prima di arrivare.
+
+### 14.3 Quello che si vede è quello che vale
+
+Tre pagine calcolavano per conto loro un numero che il motore calcolava diversamente:
+
+- il **lavaggio in arrivo** ignorava contabile e riciclatore, che il battito applicava;
+- gli **interessi** mostrati erano al tasso di listino, mentre il debito cresceva col tasso
+  limato dal credito (e il testo diceva «dieci per cento» ovunque);
+- il **rischio di controllo e di posto di blocco** ignorava sangue freddo e vedette.
+
+Ora ogni numero ha una funzione sola, usata dalla pagina e dal motore.
+
+### 14.4 Piccole cose che non tornavano
+
+- **Le ferite non guarivano**: la salute tornava a cento solo uscendo dall'ospedale, e chi
+  le prendeva senza finirci restava più debole per sempre, senza vederlo. Adesso guarisce di
+  dieci punti l'ora, contati dall'ultima ferita (migrazione 0016), e la pagina lo dice.
+- **La spia scoperta aveva tre esiti**, non i quattro dell'originale: mancava «torturata»
+  (migrazione 0017).
+- **«Uno che ti conosce»** scattava a rispetto venti, mentre il primo fornitore parla a
+  dieci; **«L'auto sotto casa»** contava qualunque segnale, compreso quello dell'obiettivo
+  appena raggiunto, e scattava per tutti dopo il primo affare.
+- **Cambiare mezzo** chiedeva il prezzo pieno in tasca, senza contare la rivendita del
+  vecchio che pure veniva pagata subito dopo.
+- Un **doppio clic** su «comincia» o due fondazioni con lo stesso nome finivano in un errore
+  500 invece che in un messaggio; un corriere mandato con una quantità negativa pure.

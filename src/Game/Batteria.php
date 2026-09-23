@@ -93,8 +93,17 @@ final class Batteria
                 [$nome, $sigla, $personaggioId, $motto === '' ? null : mb_substr($motto, 0, 160)]);
             $id = Database::lastInsertId();
             Database::run('UPDATE personaggi SET batteria_id = ? WHERE id = ?', [$id, $personaggioId]);
+            Database::run('DELETE FROM batteria_domande WHERE personaggio_id = ?', [$personaggioId]);
             Contabilita::segna($personaggioId, 'batteria', 'pulito', -$prezzo, 'fondazione di ' . $nome);
             $pdo->commit();
+        } catch (\PDOException $e) {
+            if ($pdo->inTransaction()) { $pdo->rollBack(); }
+            // Due fondazioni con lo stesso nome nello stesso istante: il
+            // controllo qui sopra le lascia passare entrambe, l'indice unico no.
+            if ((string) $e->getCode() === '23000') {
+                return ['ok' => false, 'error' => 'Nome o sigla già presi.'];
+            }
+            throw $e;
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             throw $e;
@@ -104,82 +113,276 @@ final class Batteria
         return ['ok' => true, 'id' => $id];
     }
 
-    /** @return array{ok:bool,error?:string} */
+    /**
+     * Entrare, uscire, versare, prelevare: sempre col personaggio in fila e la
+     * riga della batteria bloccata, in quest'ordine. Prima nessuna di queste
+     * azioni bloccava niente, e la più grave era il prelievo: due clic del capo
+     * nello stesso istante leggevano la stessa cassa e la svuotavano due volte —
+     * il capo incassava il doppio e la cassa andava sotto zero.
+     *
+     * **Entrare è chiedere.** Prima si entrava con un clic in qualunque
+     * batteria, e il pizzo si evitava entrando in quella che comanda la piazza;
+     * in più si diventava intoccabili per tutti i suoi membri. Adesso si fa
+     * domanda e decide il capo (migrazione 0015).
+     *
+     * @return array{ok:bool,error?:string}
+     */
     public static function entra(int $personaggioId, int $batteriaId): array
     {
-        $p = Database::first('SELECT batteria_id FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null) { return ['ok' => false, 'error' => 'Personaggio inesistente.']; }
-        if ($p['batteria_id'] !== null) { return ['ok' => false, 'error' => 'Sei già in una batteria.']; }
+        $esito = Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $batteriaId): array {
+            if ($p === null) { return ['ok' => false, 'error' => 'Personaggio inesistente.']; }
+            if ($p['batteria_id'] !== null) { return ['ok' => false, 'error' => 'Sei già in una batteria.']; }
 
-        $b = self::di($batteriaId);
-        if ($b === null) { return ['ok' => false, 'error' => 'Questa batteria non esiste.']; }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [$batteriaId]);
+            if ($b === null) { return ['ok' => false, 'error' => 'Questa batteria non esiste.']; }
 
-        Database::run('UPDATE personaggi SET batteria_id = ? WHERE id = ?', [$batteriaId, $personaggioId]);
-        return ['ok' => true];
+            Database::run('REPLACE INTO batteria_domande (personaggio_id, batteria_id, fatta_at) VALUES (?, ?, ?)',
+                [$personaggioId, $batteriaId, Clock::perDb()]);
+            return ['ok' => true, 'capo' => (int) $b['capo_id'], 'nome' => (string) $b['nome']];
+        });
+        if ($esito['ok']) {
+            Legge::segnale((int) $esito['capo'], 'batteria',
+                Rivalita::nome($personaggioId) . ' chiede di entrare in ' . $esito['nome'] . '. Decidi tu.', 2);
+        }
+        return $esito;
+    }
+
+    /** La domanda in attesa di qualcuno, se ne ha una. @return array<string,mixed>|null */
+    public static function domandaDi(int $personaggioId): ?array
+    {
+        return Database::first(
+            'SELECT d.*, b.nome, b.sigla FROM batteria_domande d JOIN batterie b ON b.id = d.batteria_id
+              WHERE d.personaggio_id = ?', [$personaggioId]);
+    }
+
+    /** Chi chiede di entrare in una batteria. @return list<array<string,mixed>> */
+    public static function domande(int $batteriaId): array
+    {
+        return Database::all(
+            'SELECT d.personaggio_id AS id, d.fatta_at, p.rispetto, p.timore, p.profilo, u.username
+               FROM batteria_domande d JOIN personaggi p ON p.id = d.personaggio_id
+               JOIN users u ON u.id = p.user_id
+              WHERE d.batteria_id = ? ORDER BY d.fatta_at', [$batteriaId]);
+    }
+
+    /**
+     * Il capo risponde a una domanda.
+     *
+     * @return array{ok:bool,error?:string,nome?:string}
+     */
+    public static function rispondi(int $capoId, int $chiId, bool $si): array
+    {
+        $esito = Fila::perTutti([$capoId, $chiId], static function (array $righe) use ($capoId, $chiId, $si): array {
+            $capo = $righe[$capoId] ?? null;
+            $chi  = $righe[$chiId] ?? null;
+            if ($capo === null || $capo['batteria_id'] === null) {
+                return ['ok' => false, 'error' => 'Non sei in nessuna batteria.'];
+            }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $capo['batteria_id']]);
+            if ($b === null || (int) $b['capo_id'] !== $capoId) {
+                return ['ok' => false, 'error' => 'Chi entra lo decide il capo.'];
+            }
+            $d = Database::first('SELECT * FROM batteria_domande WHERE personaggio_id = ? AND batteria_id = ?',
+                [$chiId, (int) $b['id']]);
+            if ($chi === null || $d === null) {
+                return ['ok' => false, 'error' => 'Questa domanda non c\'è più.'];
+            }
+            Database::run('DELETE FROM batteria_domande WHERE personaggio_id = ?', [$chiId]);
+            if (!$si) {
+                return ['ok' => true, 'nome' => (string) $b['nome'], 'entrato' => false];
+            }
+            if ($chi['batteria_id'] !== null) {
+                return ['ok' => false, 'error' => 'Nel frattempo è entrato da un\'altra parte.'];
+            }
+            Database::run('UPDATE personaggi SET batteria_id = ? WHERE id = ?', [(int) $b['id'], $chiId]);
+            return ['ok' => true, 'nome' => (string) $b['nome'], 'entrato' => true];
+        });
+        if ($esito['ok']) {
+            Legge::segnale($chiId, 'batteria', $esito['entrato']
+                ? 'Ti hanno preso: adesso sei di ' . $esito['nome'] . '.'
+                : 'Da ' . $esito['nome'] . ' hanno detto di no.', $esito['entrato'] ? 3 : 2);
+            $esito['nome'] = Rivalita::nome($chiId);
+        }
+        return $esito;
+    }
+
+    /**
+     * Il capo manda via uno dei suoi. Senza, chi entrava restava per sempre —
+     * anche dopo aver tradito, anche se non lavorava.
+     *
+     * @return array{ok:bool,error?:string,nome?:string}
+     */
+    public static function caccia(int $capoId, int $membroId): array
+    {
+        if ($capoId === $membroId) {
+            return ['ok' => false, 'error' => 'Per andartene c\'è «esci».'];
+        }
+        $esito = Fila::perTutti([$capoId, $membroId], static function (array $righe) use ($capoId, $membroId): array {
+            $capo = $righe[$capoId] ?? null;
+            $m    = $righe[$membroId] ?? null;
+            if ($capo === null || $capo['batteria_id'] === null) {
+                return ['ok' => false, 'error' => 'Non sei in nessuna batteria.'];
+            }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $capo['batteria_id']]);
+            if ($b === null || (int) $b['capo_id'] !== $capoId) {
+                return ['ok' => false, 'error' => 'Manda via qualcuno solo il capo.'];
+            }
+            if ($m === null || (int) ($m['batteria_id'] ?? 0) !== (int) $b['id']) {
+                return ['ok' => false, 'error' => 'Non è dei vostri.'];
+            }
+            Database::run('UPDATE personaggi SET batteria_id = NULL WHERE id = ?', [$membroId]);
+            return ['ok' => true, 'batteria' => (string) $b['nome']];
+        });
+        if ($esito['ok']) {
+            Legge::segnale($membroId, 'batteria', 'Da ' . $esito['batteria'] . ' ti hanno messo alla porta.', 4);
+            $esito['nome'] = Rivalita::nome($membroId);
+        }
+        return $esito;
     }
 
     /** @return array{ok:bool,error?:string} */
     public static function esci(int $personaggioId): array
     {
-        $p = Database::first('SELECT batteria_id FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null || $p['batteria_id'] === null) {
-            return ['ok' => false, 'error' => 'Non sei in nessuna batteria.'];
-        }
-        $b = self::di((int) $p['batteria_id']);
-        if ($b !== null && (int) $b['capo_id'] === $personaggioId) {
-            $altri = (int) (Database::first('SELECT COUNT(*) n FROM personaggi WHERE batteria_id = ? AND id <> ?',
-                [(int) $p['batteria_id'], $personaggioId])['n'] ?? 0);
-            if ($altri > 0) {
-                return ['ok' => false, 'error' => 'Sei il capo: prima passa la mano o restano tutti per strada.'];
+        $sciolta = null;
+        $esito = Fila::per($personaggioId, static function (?array $p) use ($personaggioId, &$sciolta): array {
+            if ($p === null || $p['batteria_id'] === null) {
+                return ['ok' => false, 'error' => 'Non sei in nessuna batteria.'];
             }
-            // Ultimo rimasto: la batteria si scioglie, e la cassa torna a lui.
-            if ((int) $b['cassa'] > 0) {
-                Database::run('UPDATE personaggi SET contante = contante + ? WHERE id = ?',
-                    [(int) $b['cassa'], $personaggioId]);
-                Contabilita::segna($personaggioId, 'batteria', 'sporco', (int) $b['cassa'], 'cassa di ' . $b['nome']);
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $p['batteria_id']]);
+            if ($b !== null && (int) $b['capo_id'] === $personaggioId) {
+                $altri = (int) (Database::first('SELECT COUNT(*) n FROM personaggi WHERE batteria_id = ? AND id <> ?',
+                    [(int) $b['id'], $personaggioId])['n'] ?? 0);
+                if ($altri > 0) {
+                    return ['ok' => false, 'error' => 'Sei il capo: prima passa la mano a uno dei tuoi, '
+                        . 'o restano tutti per strada.'];
+                }
+                // Ultimo rimasto: la batteria si scioglie, e la cassa torna a lui.
+                if ((int) $b['cassa'] > 0) {
+                    Database::run('UPDATE personaggi SET contante = contante + ? WHERE id = ?',
+                        [(int) $b['cassa'], $personaggioId]);
+                    Contabilita::segna($personaggioId, 'batteria', 'sporco', (int) $b['cassa'], 'cassa di ' . $b['nome']);
+                }
+                Database::run('UPDATE personaggi SET batteria_id = NULL WHERE id = ?', [$personaggioId]);
+                Database::run('DELETE FROM batterie WHERE id = ?', [(int) $b['id']]);
+                $sciolta = (string) $b['nome'];
+                return ['ok' => true];
             }
-            Database::run('UPDATE personaggi SET batteria_id = NULL WHERE id = ?', [$personaggioId]);
-            Database::run('DELETE FROM batterie WHERE id = ?', [(int) $p['batteria_id']]);
-            Cronaca::scrivi('batteria', $b['nome'] . ' non esiste più.', null, 2);
-            return ['ok' => true];
-        }
 
-        Database::run('UPDATE personaggi SET batteria_id = NULL WHERE id = ?', [$personaggioId]);
-        return ['ok' => true];
+            Database::run('UPDATE personaggi SET batteria_id = NULL WHERE id = ?', [$personaggioId]);
+            return ['ok' => true];
+        });
+        if ($sciolta !== null) {
+            Cronaca::scrivi('batteria', $sciolta . ' non esiste più.', null, 2);
+        }
+        return $esito;
+    }
+
+    /**
+     * Il capo passa la mano a un altro della batteria.
+     *
+     * Il messaggio di `esci()` lo chiedeva da sempre — «prima passa la mano» —
+     * ma il modo di farlo non c'era: un capo con anche un solo compagno non
+     * poteva più andarsene, e una batteria con un capo sparito restava con la
+     * cassa chiusa per sempre.
+     *
+     * @return array{ok:bool,error?:string,nome?:string}
+     */
+    public static function passaLaMano(int $capoId, int $nuovoId): array
+    {
+        if ($capoId === $nuovoId) {
+            return ['ok' => false, 'error' => 'Il capo sei già tu.'];
+        }
+        $esito = Fila::perTutti([$capoId, $nuovoId], static function (array $righe) use ($capoId, $nuovoId): array {
+            $capo = $righe[$capoId] ?? null;
+            $nuovo = $righe[$nuovoId] ?? null;
+            if ($capo === null || $capo['batteria_id'] === null) {
+                return ['ok' => false, 'error' => 'Non sei in nessuna batteria.'];
+            }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $capo['batteria_id']]);
+            if ($b === null || (int) $b['capo_id'] !== $capoId) {
+                return ['ok' => false, 'error' => 'La mano la passa solo il capo.'];
+            }
+            if ($nuovo === null || (int) ($nuovo['batteria_id'] ?? 0) !== (int) $b['id']) {
+                return ['ok' => false, 'error' => 'Non è dei vostri.'];
+            }
+            Database::run('UPDATE batterie SET capo_id = ? WHERE id = ?', [$nuovoId, (int) $b['id']]);
+            return ['ok' => true, 'batteria' => (string) $b['nome']];
+        });
+        if (!$esito['ok']) {
+            return $esito;
+        }
+        $nome = Rivalita::nome($nuovoId);
+        Legge::segnale($nuovoId, 'batteria', 'Adesso ' . $esito['batteria'] . ' la comandi tu.', 3);
+        Cronaca::scrivi('batteria', $esito['batteria'] . ' ha un capo nuovo: ' . $nome . '.', null, 2);
+        return ['ok' => true, 'nome' => $nome];
+    }
+
+    /**
+     * Prima che un personaggio sparisca (cancellato dall'amministrazione): se
+     * era capo, la batteria passa al più rispettato dei suoi, o si scioglie se
+     * era solo. Senza, restava una batteria con un capo che non esiste, la cassa
+     * che nessuno poteva più toccare e dei membri che non potevano più uscirne
+     * come si deve.
+     */
+    public static function primaDiSparire(int $personaggioId): void
+    {
+        Fila::per($personaggioId, static function (?array $p) use ($personaggioId): void {
+            if ($p === null || $p['batteria_id'] === null) {
+                return;
+            }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $p['batteria_id']]);
+            if ($b === null || (int) $b['capo_id'] !== $personaggioId) {
+                return;
+            }
+            $erede = Database::first(
+                'SELECT id FROM personaggi WHERE batteria_id = ? AND id <> ? ORDER BY rispetto DESC, id LIMIT 1',
+                [(int) $b['id'], $personaggioId]);
+            if ($erede === null) {
+                Database::run('DELETE FROM batterie WHERE id = ?', [(int) $b['id']]);
+                return;
+            }
+            Database::run('UPDATE batterie SET capo_id = ? WHERE id = ?', [(int) $erede['id'], (int) $b['id']]);
+            Legge::segnale((int) $erede['id'], 'batteria',
+                'Il vostro capo non c\'è più. Adesso ' . $b['nome'] . ' la comandi tu.', 4);
+        });
     }
 
     /** @return array{ok:bool,error?:string} */
     public static function versa(int $personaggioId, int $importo): array
     {
         if ($importo <= 0) { return ['ok' => false, 'error' => 'Quanto?']; }
-        $p = Database::first('SELECT batteria_id, contante FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null || $p['batteria_id'] === null) { return ['ok' => false, 'error' => 'Non sei in nessuna batteria.']; }
-        $importo = min($importo, (int) $p['contante']);
-        if ($importo <= 0) { return ['ok' => false, 'error' => 'Non hai contanti.']; }
+        return Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $importo): array {
+            if ($p === null || $p['batteria_id'] === null) { return ['ok' => false, 'error' => 'Non sei in nessuna batteria.']; }
+            $b = Database::first('SELECT id FROM batterie WHERE id = ? FOR UPDATE', [(int) $p['batteria_id']]);
+            if ($b === null) { return ['ok' => false, 'error' => 'Non sei in nessuna batteria.']; }
+            $importo = min($importo, (int) $p['contante']);
+            if ($importo <= 0) { return ['ok' => false, 'error' => 'Non hai contanti.']; }
 
-        Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$importo, $personaggioId]);
-        Database::run('UPDATE batterie SET cassa = cassa + ? WHERE id = ?', [$importo, (int) $p['batteria_id']]);
-        Contabilita::segna($personaggioId, 'batteria', 'sporco', -$importo, 'versati in cassa');
-        return ['ok' => true];
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$importo, $personaggioId]);
+            Database::run('UPDATE batterie SET cassa = cassa + ? WHERE id = ?', [$importo, (int) $b['id']]);
+            Contabilita::segna($personaggioId, 'batteria', 'sporco', -$importo, 'versati in cassa');
+            return ['ok' => true];
+        });
     }
 
     /** Solo il capo preleva: una cassa comune senza una mano sola è una rissa. */
     public static function preleva(int $personaggioId, int $importo): array
     {
         if ($importo <= 0) { return ['ok' => false, 'error' => 'Quanto?']; }
-        $p = Database::first('SELECT batteria_id FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null || $p['batteria_id'] === null) { return ['ok' => false, 'error' => 'Non sei in nessuna batteria.']; }
-        $b = self::di((int) $p['batteria_id']);
-        if ($b === null || (int) $b['capo_id'] !== $personaggioId) {
-            return ['ok' => false, 'error' => 'Dalla cassa prende solo il capo.'];
-        }
-        $importo = min($importo, (int) $b['cassa']);
-        if ($importo <= 0) { return ['ok' => false, 'error' => 'La cassa è vuota.']; }
+        return Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $importo): array {
+            if ($p === null || $p['batteria_id'] === null) { return ['ok' => false, 'error' => 'Non sei in nessuna batteria.']; }
+            $b = Database::first('SELECT * FROM batterie WHERE id = ? FOR UPDATE', [(int) $p['batteria_id']]);
+            if ($b === null || (int) $b['capo_id'] !== $personaggioId) {
+                return ['ok' => false, 'error' => 'Dalla cassa prende solo il capo.'];
+            }
+            $importo = min($importo, (int) $b['cassa']);
+            if ($importo <= 0) { return ['ok' => false, 'error' => 'La cassa è vuota.']; }
 
-        Database::run('UPDATE batterie SET cassa = cassa - ? WHERE id = ?', [$importo, (int) $b['id']]);
-        Database::run('UPDATE personaggi SET contante = contante + ? WHERE id = ?', [$importo, $personaggioId]);
-        Contabilita::segna($personaggioId, 'batteria', 'sporco', $importo, 'prelevati dalla cassa');
-        return ['ok' => true];
+            Database::run('UPDATE batterie SET cassa = cassa - ? WHERE id = ?', [$importo, (int) $b['id']]);
+            Database::run('UPDATE personaggi SET contante = contante + ? WHERE id = ?', [$importo, $personaggioId]);
+            Contabilita::segna($personaggioId, 'batteria', 'sporco', $importo, 'prelevati dalla cassa');
+            return ['ok' => true];
+        });
     }
 
     // --- Il territorio --------------------------------------------------------
@@ -198,8 +401,15 @@ final class Batteria
         if ($valore <= 0) {
             return 0;
         }
-        $p = Database::first('SELECT batteria_id FROM personaggi WHERE id = ?', [$personaggioId]);
-        $mia = $p === null ? null : ($p['batteria_id'] === null ? null : (int) $p['batteria_id']);
+        return Fila::per($personaggioId,
+            static fn(?array $p) => $p === null ? 0 : self::lavoratoInFila($p, $piazzaId, $valore));
+    }
+
+    /** @param array<string,mixed> $p il personaggio, bloccato */
+    private static function lavoratoInFila(array $p, int $piazzaId, int $valore): int
+    {
+        $personaggioId = (int) $p['id'];
+        $mia = $p['batteria_id'] === null ? null : (int) $p['batteria_id'];
 
         if ($mia !== null) {
             $punti = $valore * (float) GameConfig::get('territorio.per_lira', 0.0000012);
@@ -215,12 +425,18 @@ final class Batteria
             return 0;
         }
 
-        $pizzo = (int) round($valore * (float) GameConfig::get('batteria.pizzo', 0.04));
+        // Il pizzo non può essere più di quello che hai in tasca. Prima si
+        // toglieva al giocatore il minimo fra pizzo e contante, ma alla cassa
+        // si versava il pizzo intero: chi comprava con tutto quello che aveva
+        // pagava zero e la batteria incassava il quattro per cento dal nulla.
+        $pizzo = min((int) round($valore * (float) GameConfig::get('batteria.pizzo', 0.04)), max(0, (int) $p['contante']));
         if ($pizzo <= 0) {
             return 0;
         }
-        Database::run('UPDATE personaggi SET contante = GREATEST(0, contante - ?) WHERE id = ?',
-            [$pizzo, $personaggioId]);
+        if (Database::first('SELECT id FROM batterie WHERE id = ? FOR UPDATE', [(int) $t['batteria_id']]) === null) {
+            return 0;
+        }
+        Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$pizzo, $personaggioId]);
         Database::run('UPDATE batterie SET cassa = cassa + ? WHERE id = ?', [$pizzo, (int) $t['batteria_id']]);
         Contabilita::segna($personaggioId, 'pizzo', 'sporco', -$pizzo, 'a chi comanda in questa piazza');
         return $pizzo;
@@ -239,11 +455,14 @@ final class Batteria
         $cambi = 0;
 
         // 1. Il decadimento: il territorio va tenuto, non preso una volta.
+        // Solo se nessuno ha lavorato lì nel frattempo: `lavorato()` somma i
+        // suoi punti e rimette l'orologio, e riscrivere il valore letto prima
+        // li cancellava.
         foreach (Database::all('SELECT * FROM presenze WHERE punti > 0') as $r) {
             $da = Clock::daDb((string) $r['agg_a'])?->getTimestamp() ?? $ora->getTimestamp();
             $p = Calore::decaduto((float) $r['punti'], max(0, $ora->getTimestamp() - $da), $dim);
-            Database::run('UPDATE presenze SET punti = ?, agg_a = ? WHERE piazza_id = ? AND batteria_id = ?',
-                [round($p, 3), Clock::perDb($ora), (int) $r['piazza_id'], (int) $r['batteria_id']]);
+            Database::run('UPDATE presenze SET punti = ?, agg_a = ? WHERE piazza_id = ? AND batteria_id = ? AND agg_a = ?',
+                [round($p, 3), Clock::perDb($ora), (int) $r['piazza_id'], (int) $r['batteria_id'], $r['agg_a']]);
         }
         Database::run('DELETE FROM presenze WHERE punti <= 0.01');
 

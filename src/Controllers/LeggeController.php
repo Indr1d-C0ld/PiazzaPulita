@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Auth\Auth;
+use App\Core\Database;
 use App\Core\GameConfig;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Game\Legge;
-use App\Game\Listino;
 use App\Game\Mondo;
 use App\Game\Personaggio;
 use App\Sim\Calore;
@@ -27,6 +27,9 @@ final class LeggeController
         $calore = Legge::calorePersonale($p);
         $piazza = Mondo::piazza((int) $p['piazza_id']);
         $mezzo  = Personaggio::mezzoProprio($p);
+        // La riga fresca della piazza, col calore scritto: `Mondo::piazza()`
+        // viene da una copia in memoria che il calore non lo segue.
+        $caldo  = Database::first('SELECT * FROM piazze WHERE id = ?', [(int) $p['piazza_id']]);
 
         return Response::html(view('gioco/fascicolo', [
             'title'     => 'Il fascicolo',
@@ -34,24 +37,9 @@ final class LeggeController
             'calore'    => $calore,
             'caloreParole' => Calore::aParole($calore),
             'piazza'    => $piazza,
-            'calorePiazza' => $piazza === null ? 0.0 : Legge::calorePiazza(
-                \App\Core\Database::first('SELECT calore, calore_agg_a FROM piazze WHERE id = ?', [(int) $p['piazza_id']]) ?? []
-            ),
-            'rischio'   => $piazza === null ? 0.0 : Calore::rischioControllo(
-                (float) GameConfig::get('legge.controllo_base', 0.02),
-                (int) $piazza['polizia'],
-                Legge::calorePiazza(\App\Core\Database::first('SELECT calore, calore_agg_a FROM piazze WHERE id = ?', [(int) $p['piazza_id']]) ?? []),
-                $calore,
-                (int) $p['profilo'],
-            ),
-            'rischioBlocco' => $mezzo === null ? 0.0 : Calore::rischioBlocco(
-                (float) GameConfig::get('legge.blocco_base', 0.035),
-                (int) $mezzo['vistoso'],
-                Listino::ingombroUsato((int) $p['id']),
-                $calore,
-                (int) $p['profilo'],
-                true,
-            ),
+            'calorePiazza' => $caldo === null ? 0.0 : Legge::calorePiazza($caldo),
+            'rischio'   => $caldo === null ? 0.0 : Legge::rischioControllo($p, $caldo),
+            'rischioBlocco' => $mezzo === null ? 0.0 : Legge::rischioBlocco($p, $mezzo),
             'fascicolo' => Legge::fascicolo((int) $p['id']),
             'segnali'   => Legge::segnali((int) $p['id'], 25),
             'inCarcere' => Legge::inCarcere($p),

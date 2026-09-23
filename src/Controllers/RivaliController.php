@@ -74,6 +74,8 @@ final class RivaliController
             'uomini'     => array_values(array_filter(Organico::uomini((int) $p['id']),
                                 static fn($u) => (string) $u['stato'] === 'libero')),
             'inOspedale' => Rivalita::inOspedale($p),
+            'salute'     => Rivalita::saluteOra($p),
+            'guarigione' => GameConfig::int('pvp.guarigione_ora', 10),
             'mancano'    => Rivalita::mancaAlDimissione($p),
             'prezzi'     => [
                 'spia'     => GameConfig::int('pvp.spia_prezzo', 3_000_000),
@@ -214,6 +216,8 @@ final class RivaliController
             'p'          => $p,
             'mia'        => $mia,
             'membri'     => $mia === null ? [] : Batteria::membri((int) $mia['id']),
+            'domande'    => $mia === null ? [] : Batteria::domande((int) $mia['id']),
+            'miaDomanda' => $mia === null ? Batteria::domandaDi((int) $p['id']) : null,
             'territori'  => $mia === null ? [] : Batteria::territoriDi((int) $mia['id']),
             'elenco'     => Batteria::elenco(),
             'sonoCapo'   => $mia !== null && (int) $mia['capo_id'] === (int) $p['id'],
@@ -240,7 +244,7 @@ final class RivaliController
 
         $res = Batteria::entra((int) $p['id'], $request->int('batteria'));
         Session::flash($res['ok'] ? 'success' : 'error',
-            $res['ok'] ? 'Sei dentro.' : ($res['error'] ?? 'Non si può.'));
+            $res['ok'] ? 'Hai chiesto di entrare. Decide il capo.' : ($res['error'] ?? 'Non si può.'));
         return redirect('/batteria');
     }
 
@@ -265,6 +269,43 @@ final class RivaliController
             : Batteria::versa((int) $p['id'], $request->int('importo'));
 
         Session::flash($res['ok'] ? 'success' : 'error', $res['ok'] ? 'Fatto.' : ($res['error'] ?? 'Non si può.'));
+        return redirect('/batteria');
+    }
+
+    public function domanda(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+
+        $si = $request->str('esito') === 'si';
+        $res = Batteria::rispondi((int) $p['id'], $request->int('chi'), $si);
+        Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
+            ? ($si ? ($res['nome'] ?? 'Qualcuno') . ' è dei vostri.' : 'Domanda respinta.')
+            : ($res['error'] ?? 'Non si può.'));
+        return redirect('/batteria');
+    }
+
+    public function caccia(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+
+        $res = Batteria::caccia((int) $p['id'], $request->int('membro'));
+        Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
+            ? ($res['nome'] ?? 'Qualcuno') . ' non è più dei vostri.'
+            : ($res['error'] ?? 'Non si può.'));
+        return redirect('/batteria');
+    }
+
+    public function capo(Request $request): Response
+    {
+        $p = $this->mio();
+        if ($p === null) { return redirect('/inizio'); }
+
+        $res = Batteria::passaLaMano((int) $p['id'], $request->int('membro'));
+        Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
+            ? 'Adesso comanda ' . ($res['nome'] ?? 'un altro') . '. Tu sei uno dei tanti.'
+            : ($res['error'] ?? 'Non si può.'));
         return redirect('/batteria');
     }
 

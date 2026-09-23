@@ -102,7 +102,13 @@ grep -q "non ne reggi" <<< "${PAGINA}" \
   && verifica "il secondo no, senza organizzazione" "si" "si" \
   || verifica "il secondo no, senza organizzazione" "si" "no"
 
-dbq "UPDATE personaggi SET organizzazione=40 WHERE id=${PID}" >/dev/null
+# Dal carcere non si ingaggia: la pagina non lo offre, e il server lo rifiuta.
+dbq "UPDATE personaggi SET organizzazione=40, carcere_fino_a=DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id=${PID}" >/dev/null
+TOK=$(c "${BASE_URL}/personaggio" | token_da)
+c -o /dev/null -L -X POST "${BASE_URL}/organico/assumi" --data-urlencode "_token=${TOK}" --data-urlencode "ruolo=corriere"
+verifica "dal carcere non si ingaggia" "1" "$(dbq "SELECT COUNT(*) FROM uomini WHERE personaggio_id=${PID}")"
+dbq "UPDATE personaggi SET carcere_fino_a=NULL WHERE id=${PID}" >/dev/null
+
 TOK=$(c "${BASE_URL}/personaggio" | token_da)
 c -o /dev/null -L -X POST "${BASE_URL}/organico/assumi" --data-urlencode "_token=${TOK}" --data-urlencode "ruolo=corriere"
 verifica "con l'organizzazione sì" "2" "$(dbq "SELECT COUNT(*) FROM uomini WHERE personaggio_id=${PID}")"

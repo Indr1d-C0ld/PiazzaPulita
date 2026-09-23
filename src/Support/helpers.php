@@ -289,6 +289,15 @@ if (!function_exists('quantita')) {
     }
 }
 
+if (!function_exists('percento')) {
+    /** Una frazione come percentuale all'italiana: 0.085 -> «8,5 %». Niente decimali se tondi. */
+    function percento(float $frazione): string
+    {
+        $v = round($frazione * 100, 1);
+        return number_format($v, fmod($v, 1.0) === 0.0 ? 0 : 1, ',', '.') . "\u{202F}%";
+    }
+}
+
 if (!function_exists('auth_user')) {
     /** @return array<string,mixed>|null */
     function auth_user(): ?array

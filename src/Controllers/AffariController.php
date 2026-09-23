@@ -42,6 +42,7 @@ final class AffariController
             'catalogo'   => Contabilita::catalogo(),
             'mezzi'      => Logistica::mezzi(),
             'mezzoMio'   => Personaggio::mezzoProprio($p),
+            'rivendita'  => Logistica::rivendita($p),
             'capienza'   => Logistica::capienza($p),
             'usato'      => Listino::ingombroUsato((int) $p['id']),
             'depositi'   => Logistica::depositi((int) $p['id']),
@@ -94,7 +95,8 @@ final class AffariController
 
         $res = Contabilita::prestito((int) $p['id'], $request->int('importo'));
         Session::flash($res['ok'] ? 'success' : 'error', $res['ok']
-            ? 'Ti conta ' . lire((int) $res['importo']) . ' senza guardarti in faccia. Il dieci per cento al giorno corre da adesso.'
+            ? 'Ti conta ' . lire((int) $res['importo']) . ' senza guardarti in faccia. Il '
+              . percento(Contabilita::tassoEffettivo($p)) . ' al giorno corre da adesso.'
             : ($res['error'] ?? 'Non si può.'));
         return redirect('/affari');
     }

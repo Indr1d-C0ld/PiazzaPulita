@@ -111,12 +111,21 @@ final class Personaggio
         $debito   = GameConfig::int('denaro.debito_iniziale', 1_500_000);
         $tetto    = (int) round($debito * (float) GameConfig::get('denaro.tetto_debito', 3.0));
 
-        Database::run(
-            'INSERT INTO personaggi (user_id, piazza_id, contante, capienza, debito, debito_tetto, debito_agg_a, pulito_dal)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$userId, (int) $piazza['id'], $contante, Logistica::CAPIENZA_BASE, $debito, $tetto, Clock::perDb(),
-             Clock::adesso()->format('Y-m-d H:i:s')]
-        );
+        try {
+            Database::run(
+                'INSERT INTO personaggi (user_id, piazza_id, contante, capienza, debito, debito_tetto, debito_agg_a, pulito_dal)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [$userId, (int) $piazza['id'], $contante, Logistica::CAPIENZA_BASE, $debito, $tetto, Clock::perDb(),
+                 Clock::adesso()->format('Y-m-d H:i:s')]
+            );
+        } catch (\PDOException $e) {
+            // Un doppio clic su «comincia»: il controllo qui sopra le lascia
+            // passare tutte e due, l'indice unico su user_id no.
+            if ((string) $e->getCode() === '23000') {
+                return ['ok' => false, 'error' => 'Hai già un personaggio.'];
+            }
+            throw $e;
+        }
         $nuovoId = Database::lastInsertId();
 
         // Il canale di partenza: un amico con un bar. Lava poco e si prende

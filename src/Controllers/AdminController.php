@@ -13,6 +13,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Game\Avatar;
+use App\Game\Batteria;
 use App\Game\Carta;
 use App\Game\Chiacchiera;
 use App\Game\Legge;
@@ -453,6 +454,7 @@ final class AdminController
                 if ($request->str('conferma') !== 'cancella') {
                     return null;
                 }
+                Batteria::primaDiSparire($id);
                 Database::run('DELETE FROM personaggi WHERE id = ?', [$id]);
                 return 'Personaggio cancellato: il giocatore ricomincia dalla scelta della città.';
             })(),

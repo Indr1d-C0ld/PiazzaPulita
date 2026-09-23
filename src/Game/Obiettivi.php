@@ -67,8 +67,11 @@ final class Obiettivi
             ],
             'fornitore' => [
                 'nome' => 'Uno che ti conosce', 'gruppo' => 'Il mestiere', 'raro' => false,
-                'testo' => 'Arrivare a venti di rispetto: il primo fornitore vuole parlarti.',
-                'cond' => static fn(array $f) => $f['rispetto'] >= 20.0,
+                'testo' => 'Farsi abbastanza rispetto che il primo fornitore voglia parlarti.',
+                // La soglia è quella del fornitore, non un numero scritto qui:
+                // il testo diceva «venti» mentre lo zio del bar parla già a
+                // dieci, e l'obiettivo arrivava dopo la cosa che celebrava.
+                'cond' => static fn(array $f) => $f['rispetto'] >= $f['soglia_fornitore'],
             ],
 
             // --- Il denaro -----------------------------------------------------
@@ -304,7 +307,11 @@ final class Obiettivi
             'mezzo'          => (string) ($p['mezzo'] ?? ''),
             'depositi'       => (int) (Database::first('SELECT COUNT(*) n FROM depositi WHERE personaggio_id = ?',
                                        [$personaggioId])['n'] ?? 0),
-            'segnali'        => (int) (Database::first('SELECT COUNT(*) n FROM segnali WHERE personaggio_id = ?',
+            // Solo i segnali di chi indaga: contarli tutti faceva scattare «l'auto
+            // sotto casa» col segnale dell'obiettivo appena raggiunto — cioè a
+            // tutti, subito dopo il primo affare, senza nessuno a guardare.
+            'segnali'        => (int) (Database::first(
+                                       "SELECT COUNT(*) n FROM segnali WHERE personaggio_id = ? AND genere = 'fascicolo'",
                                        [$personaggioId])['n'] ?? 0),
             'archiviati'     => (int) (Database::first(
                                        "SELECT COUNT(*) n FROM fascicoli WHERE personaggio_id = ? AND stato = 'archiviato'",
@@ -313,6 +320,7 @@ final class Obiettivi
             'in_carcere'     => Legge::inCarcere($p),
             'profilo'        => (int) $p['profilo'],
             'rispetto'       => (float) $p['rispetto'],
+            'soglia_fornitore' => (float) (min(array_column(Fornitori::tutti(), 'rispetto_min') ?: [20])),
             'giorni_pulito'  => $giorniPulito,
             'vinti'          => (int) $p['scontri_vinti'],
             'spie'           => (int) (Database::first(

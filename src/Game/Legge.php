@@ -68,16 +68,21 @@ final class Legge
             return 0.0;
         }
 
-        $p = Database::first('SELECT calore, calore_agg_a FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p !== null) {
-            Database::run('UPDATE personaggi SET calore = ?, calore_agg_a = ? WHERE id = ?',
-                [round(self::calorePersonale($p) + $g, 3), Clock::perDb(), $personaggioId]);
-        }
-        $z = Database::first('SELECT calore, calore_agg_a FROM piazze WHERE id = ?', [$piazzaId]);
-        if ($z !== null) {
-            Database::run('UPDATE piazze SET calore = ?, calore_agg_a = ? WHERE id = ?',
-                [round(self::calorePiazza($z) + $g, 3), Clock::perDb(), $piazzaId]);
-        }
+        // Il calore si scrive decaduto più il nuovo, cioè come valore assoluto:
+        // va letto e scritto con le righe bloccate, o il battito che lo fa
+        // decadere nello stesso istante lo riscrive col valore di prima e il
+        // calore di questa operazione sparisce.
+        Fila::per($personaggioId, static function (?array $p) use ($piazzaId, $g): void {
+            if ($p !== null) {
+                Database::run('UPDATE personaggi SET calore = ?, calore_agg_a = ? WHERE id = ?',
+                    [round(self::calorePersonale($p) + $g, 3), Clock::perDb(), (int) $p['id']]);
+            }
+            $z = Database::first('SELECT calore, calore_agg_a FROM piazze WHERE id = ? FOR UPDATE', [$piazzaId]);
+            if ($z !== null) {
+                Database::run('UPDATE piazze SET calore = ?, calore_agg_a = ? WHERE id = ?',
+                    [round(self::calorePiazza($z) + $g, 3), Clock::perDb(), $piazzaId]);
+            }
+        });
         return $g;
     }
 
@@ -113,20 +118,8 @@ final class Legge
         if (self::inCarcere($p)) {
             return ['controllo' => false];
         }
-        $rischio = Calore::rischioControllo(
-            (float) GameConfig::get('legge.controllo_base', 0.02),
-            (int) $piazza['polizia'],
-            self::calorePiazza($piazza),
-            self::calorePersonale($p),
-            (int) $p['profilo'],
-        );
-        // Il sangue freddo e una vedette in quella piazza abbassano il rischio.
-        // Sono due cose diverse: uno è quello che sei diventato, l'altra è
-        // qualcuno che hai messo lì e che paghi.
-        $rischio = Crescita::rischioConSangueFreddo($rischio, (float) ($p['sangue_freddo'] ?? 0));
         $eff = Organico::effetti((int) $p['id']);
-        $vedetta = $eff['vedette'][(int) $piazza['id']] ?? 0.0;
-        $rischio *= (1.0 - min(0.45, $vedetta * 0.5));
+        $rischio = self::rischioControllo($p, $piazza, $eff);
 
         if (random_int(1, 1_000_000) / 1_000_000 >= $rischio) {
             return ['controllo' => false];
@@ -159,6 +152,51 @@ final class Legge
     }
 
     /**
+     * La probabilità di un controllo dopo un'operazione, per QUESTO giocatore
+     * in QUESTA piazza. Sta in un punto solo perché la usa anche la pagina del
+     * fascicolo: prima la pagina la ricalcolava per conto suo senza sangue
+     * freddo e senza vedette, e mostrava un rischio più alto di quello vero —
+     * chi pagava una vedetta non vedeva a cosa servisse.
+     *
+     * @param array<string,mixed> $p @param array<string,mixed> $piazza
+     * @param array<string,mixed>|null $eff Organico::effetti(), se già in mano
+     */
+    public static function rischioControllo(array $p, array $piazza, ?array $eff = null): float
+    {
+        $rischio = Calore::rischioControllo(
+            (float) GameConfig::get('legge.controllo_base', 0.02),
+            (int) $piazza['polizia'],
+            self::calorePiazza($piazza),
+            self::calorePersonale($p),
+            (int) $p['profilo'],
+        );
+        // Il sangue freddo e una vedette in quella piazza abbassano il rischio.
+        // Sono due cose diverse: uno è quello che sei diventato, l'altra è
+        // qualcuno che hai messo lì e che paghi.
+        $rischio = Crescita::rischioConSangueFreddo($rischio, (float) ($p['sangue_freddo'] ?? 0));
+        $eff ??= Organico::effetti((int) $p['id']);
+        $vedetta = $eff['vedette'][(int) $piazza['id']] ?? 0.0;
+        return $rischio * (1.0 - min(0.45, $vedetta * 0.5));
+    }
+
+    /**
+     * La probabilità di un posto di blocco viaggiando col proprio mezzo.
+     *
+     * @param array<string,mixed> $p @param array<string,mixed> $mezzo
+     */
+    public static function rischioBlocco(array $p, array $mezzo): float
+    {
+        return Crescita::rischioConSangueFreddo(Calore::rischioBlocco(
+            (float) GameConfig::get('legge.blocco_base', 0.035),
+            (int) $mezzo['vistoso'],
+            Listino::ingombroUsato((int) $p['id']),
+            self::calorePersonale($p),
+            (int) $p['profilo'],
+            true,
+        ), (float) ($p['sangue_freddo'] ?? 0));
+    }
+
+    /**
      * Tira per un posto di blocco su una tratta.
      *
      * Solo con un mezzo proprio: in treno o a piedi non c'è niente da fermare.
@@ -172,15 +210,7 @@ final class Legge
         if ($mezzoScelto !== 'auto' || $mezzo === null) {
             return ['blocco' => false];
         }
-        $ingombro = Listino::ingombroUsato((int) $p['id']);
-        $rischio = Crescita::rischioConSangueFreddo(Calore::rischioBlocco(
-            (float) GameConfig::get('legge.blocco_base', 0.035),
-            (int) $mezzo['vistoso'],
-            $ingombro,
-            self::calorePersonale($p),
-            (int) $p['profilo'],
-            true,
-        ), (float) ($p['sangue_freddo'] ?? 0));
+        $rischio = self::rischioBlocco($p, $mezzo);
         if (random_int(1, 1_000_000) / 1_000_000 >= $rischio) {
             return ['blocco' => false];
         }
@@ -198,6 +228,15 @@ final class Legge
 
     /** @return array{0:int,1:int} unità e valore di costo perduti */
     private static function sequestraCarico(int $personaggioId, float $quota): array
+    {
+        // Carico letto e svuotato col personaggio in fila: una vendita nello
+        // stesso istante poteva far scendere la quantità sotto quella da
+        // togliere, e la colonna senza segno faceva fallire tutto con un 500.
+        return Fila::per($personaggioId, static fn() => self::sequestraInFila($personaggioId, $quota));
+    }
+
+    /** @return array{0:int,1:int} */
+    private static function sequestraInFila(int $personaggioId, float $quota): array
     {
         $unita = 0; $valore = 0;
         foreach (Listino::carico($personaggioId) as $c) {
@@ -240,10 +279,7 @@ final class Legge
     /** Aggiunge prove al fascicolo aperto, aprendone uno se serve. */
     public static function prove(int $personaggioId, float $quante, string $perche): void
     {
-        $f = self::fascicolo($personaggioId);
-        if ($f === null) {
-            $f = self::apri($personaggioId, $perche);
-        }
+        $f = self::fascicolo($personaggioId) ?? self::apri($personaggioId, $perche);
         Database::run('UPDATE fascicoli SET prove = LEAST(999, prove + ?) WHERE id = ?',
             [round($quante, 2), (int) $f['id']]);
     }
@@ -256,10 +292,20 @@ final class Legge
         $nome = self::GRADI[$rng->intero(0, count(self::GRADI) - 1)] . ' '
               . self::COGNOMI[$rng->intero(0, count(self::COGNOMI) - 1)];
 
-        Database::run(
-            'INSERT INTO fascicoli (personaggio_id, inquirente, corpo, agg_a) VALUES (?, ?, ?, ?)',
+        // Un fascicolo aperto per persona, e lo garantisce il database (la
+        // colonna `aperto` della migrazione 0014): due fatti nello stesso
+        // istante — un controllo in strada mentre il battito apre per troppo
+        // calore — ne aprivano due, e due fascicoli maturano due blitz.
+        $n = Database::run(
+            'INSERT IGNORE INTO fascicoli (personaggio_id, inquirente, corpo, agg_a) VALUES (?, ?, ?, ?)',
             [$personaggioId, $nome, $corpo, Clock::perDb()]
-        );
+        )->rowCount();
+        if ($n === 0) {
+            $gia = self::fascicolo($personaggioId);
+            if ($gia !== null) {
+                return $gia;
+            }
+        }
         $id = Database::lastInsertId();
 
         self::segnale($personaggioId, 'fascicolo',
@@ -308,8 +354,13 @@ final class Legge
             $nuove = Calore::prove($calore, max(0, $ora->getTimestamp() - $da), $tasso);
             $prove = (float) $f['prove'] + $nuove;
 
-            Database::run('UPDATE fascicoli SET prove = ?, agg_a = ? WHERE id = ?',
-                [round($prove, 2), Clock::perDb($ora), (int) $f['id']]);
+            // Si AGGIUNGE, non si riscrive: fra la lettura qui sopra e questa
+            // riga un avvocato può aver smontato trenta prove, o un controllo
+            // averne portate sei. Riscrivere il valore letto le cancellava — e
+            // l'avvocato era stato pagato quattro milioni per niente.
+            Database::run('UPDATE fascicoli SET prove = LEAST(999, GREATEST(0, prove + ?)), agg_a = ? WHERE id = ?',
+                [round($nuove, 2), Clock::perDb($ora), (int) $f['id']]);
+            $prove = (float) (Database::first('SELECT prove FROM fascicoli WHERE id = ?', [(int) $f['id']])['prove'] ?? $prove);
             $cresciuti++;
 
             self::segnaliDiSoglia((int) $f['personaggio_id'], (float) $f['prove'], $prove, (string) $f['inquirente']);
@@ -353,10 +404,18 @@ final class Legge
     /** Il blitz: perquisizione, sequestro, arresto. */
     private static function blitz(int $personaggioId, int $fascicoloId, float $prove): void
     {
-        $p = Database::first('SELECT * FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null) {
-            return;
-        }
+        // Col personaggio bloccato: il sequestro è una quota del contante di
+        // ADESSO, e il carico non deve poter cambiare mentre lo si svuota.
+        Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $fascicoloId, $prove): void {
+            if ($p !== null && !self::inCarcere($p)) {
+                self::eseguiBlitz($p, $personaggioId, $fascicoloId, $prove);
+            }
+        });
+    }
+
+    /** @param array<string,mixed> $p la riga bloccata */
+    private static function eseguiBlitz(array $p, int $personaggioId, int $fascicoloId, float $prove): void
+    {
 
         [$unita, $valore] = self::sequestraCarico($personaggioId, 1.0);
 
@@ -422,19 +481,22 @@ final class Legge
             return ['ok' => false, 'error' => 'Non hai un fascicolo aperto. Un avvocato serve quando serve.'];
         }
         $prezzo = GameConfig::int('legge.avvocato_prezzo', 4_000_000);
-        $p = Database::first('SELECT pulito FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null || (int) $p['pulito'] < $prezzo) {
-            return ['ok' => false, 'error' => 'La parcella è ' . lire($prezzo) . ', in denaro pulito. '
-                . 'Un penalista non lavora per contanti in una busta.'];
-        }
-
         $giu = (float) GameConfig::int('legge.avvocato_prove', 30);
-        Database::run('UPDATE personaggi SET pulito = pulito - ? WHERE id = ?', [$prezzo, $personaggioId]);
-        Database::run('UPDATE fascicoli SET prove = GREATEST(0, prove - ?) WHERE id = ?', [$giu, (int) $f['id']]);
-        Contabilita::segna($personaggioId, 'avvocato', 'pulito', -$prezzo, 'parcella');
-        self::segnale($personaggioId, 'difesa', 'Il tuo avvocato ha smontato qualcosa. Non tutto.', 1);
-
-        return ['ok' => true, 'prove' => max(0.0, (float) $f['prove'] - $giu)];
+        // Saldo controllato e addebitato sotto lo stesso lucchetto: due clic
+        // insieme passavano entrambi il controllo e mandavano il pulito sotto
+        // zero.
+        return Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $f, $prezzo, $giu): array {
+            if ($p === null || (int) $p['pulito'] < $prezzo) {
+                return ['ok' => false, 'error' => 'La parcella è ' . lire($prezzo) . ', in denaro pulito. '
+                    . 'Un penalista non lavora per contanti in una busta.'];
+            }
+            Database::run('UPDATE personaggi SET pulito = pulito - ? WHERE id = ?', [$prezzo, $personaggioId]);
+            Database::run('UPDATE fascicoli SET prove = GREATEST(0, prove - ?) WHERE id = ?', [$giu, (int) $f['id']]);
+            Contabilita::segna($personaggioId, 'avvocato', 'pulito', -$prezzo, 'parcella');
+            self::segnale($personaggioId, 'difesa', 'Il tuo avvocato ha smontato qualcosa. Non tutto.', 1);
+            $ora = Database::first('SELECT prove FROM fascicoli WHERE id = ?', [(int) $f['id']]);
+            return ['ok' => true, 'prove' => (float) ($ora['prove'] ?? 0)];
+        });
     }
 
     /** @return array{ok:bool,error?:string,andata?:bool} */
@@ -445,13 +507,17 @@ final class Legge
             return ['ok' => false, 'error' => 'Non c\'è niente da comprare: nessuno si sta occupando di te.'];
         }
         $prezzo = GameConfig::int('legge.bustarella_prezzo', 2_500_000);
-        $p = Database::first('SELECT contante FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null || (int) $p['contante'] < $prezzo) {
+        $pagata = Fila::per($personaggioId, static function (?array $p) use ($personaggioId, $prezzo): bool {
+            if ($p === null || (int) $p['contante'] < $prezzo) {
+                return false;
+            }
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $personaggioId]);
+            Contabilita::segna($personaggioId, 'bustarella', 'sporco', -$prezzo, 'a qualcuno che forse ascolta');
+            return true;
+        });
+        if (!$pagata) {
             return ['ok' => false, 'error' => 'Servono ' . lire($prezzo) . ' in contanti.'];
         }
-
-        Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $personaggioId]);
-        Contabilita::segna($personaggioId, 'bustarella', 'sporco', -$prezzo, 'a qualcuno che forse ascolta');
 
         // Il rischio è il punto: comprare qualcuno che non si lascia comprare
         // non è denaro sprecato, è denaro che si trasforma in prove.
@@ -522,15 +588,17 @@ final class Legge
     public static function raffredda(): int
     {
         $n = 0;
+        // Scrive solo se nessuno ha toccato la riga dopo la lettura: chi l'ha
+        // toccata (`scalda`) l'ha già portata ad adesso, col calore nuovo
+        // dentro. Senza questa condizione il battito riscriveva il valore
+        // letto prima, e il calore dell'ultima operazione spariva.
         foreach (Database::all('SELECT id, calore, calore_agg_a FROM personaggi WHERE calore > 0') as $r) {
-            Database::run('UPDATE personaggi SET calore = ?, calore_agg_a = ? WHERE id = ?',
-                [round(self::calorePersonale($r), 3), Clock::perDb(), (int) $r['id']]);
-            $n++;
+            $n += Database::run('UPDATE personaggi SET calore = ?, calore_agg_a = ? WHERE id = ? AND calore_agg_a <=> ?',
+                [round(self::calorePersonale($r), 3), Clock::perDb(), (int) $r['id'], $r['calore_agg_a']])->rowCount();
         }
         foreach (Database::all('SELECT id, calore, calore_agg_a FROM piazze WHERE calore > 0') as $r) {
-            Database::run('UPDATE piazze SET calore = ?, calore_agg_a = ? WHERE id = ?',
-                [round(self::calorePiazza($r), 3), Clock::perDb(), (int) $r['id']]);
-            $n++;
+            $n += Database::run('UPDATE piazze SET calore = ?, calore_agg_a = ? WHERE id = ? AND calore_agg_a <=> ?',
+                [round(self::calorePiazza($r), 3), Clock::perDb(), (int) $r['id'], $r['calore_agg_a']])->rowCount();
         }
         return $n;
     }

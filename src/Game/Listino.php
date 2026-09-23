@@ -244,15 +244,20 @@ final class Listino
         $seme = self::seme();
         $n = 0;
 
+        // Si scrive solo se la riga è ancora quella letta. Un ordine che passa
+        // fra la lettura e la scrittura ha già portato la riga ad adesso, con
+        // dentro l'acquisto o la vendita: riscriverla col valore proiettato
+        // da prima cancellava l'ordine dal mercato — la merce comprata tornava
+        // sul banco e il prezzo non si muoveva, cioè il tetto al reddito del
+        // mondo aveva una falla che si apriva una volta al minuto.
         foreach (Database::all('SELECT * FROM mercati') as $r) {
             $s = self::proietta($r, $ora, $oreR, $oreA, $seme);
-            Database::run(
+            $n += Database::run(
                 'UPDATE mercati SET offerta = ?, domanda = ?, shock = ?, agg_a = ?
-                  WHERE piazza_id = ? AND bene_id = ?',
+                  WHERE piazza_id = ? AND bene_id = ? AND agg_a = ?',
                 [round($s['offerta'], 3), round($s['domanda'], 3), round($s['shock'], 3),
-                 Clock::perDb(), (int) $r['piazza_id'], (int) $r['bene_id']]
-            );
-            $n++;
+                 Clock::perDb(), (int) $r['piazza_id'], (int) $r['bene_id'], $r['agg_a']]
+            )->rowCount();
         }
         return $n;
     }

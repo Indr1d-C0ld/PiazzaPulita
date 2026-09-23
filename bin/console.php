@@ -42,6 +42,7 @@ use App\Core\Database;
 use App\Core\GameConfig;
 use App\Core\Mailer;
 use App\Core\Posta;
+use App\Game\Batteria;
 use App\Game\Listino;
 use App\Game\Mondo;
 use App\Game\Personaggio;
@@ -204,6 +205,11 @@ try {
                 out('Annullato.');
                 break;
             }
+            // Il personaggio se ne va in cascata con l'account: se comandava una
+            // batteria, prima la si passa di mano.
+            foreach (Database::all('SELECT id FROM personaggi WHERE user_id = ?', [$u['id']]) as $pp) {
+                Batteria::primaDiSparire((int) $pp['id']);
+            }
             Database::run('DELETE FROM users WHERE id = ?', [$u['id']]);
             out('Cancellato.');
             break;
@@ -337,6 +343,7 @@ try {
             // perche' il registro deve sopravvivere alla cancellazione di un
             // personaggio — ma quelle di questo non servono piu' a nessuno.
             Database::run('DELETE FROM transazioni WHERE personaggio_id = ?', [(int) $p['id']]);
+            Batteria::primaDiSparire((int) $p['id']);
             Database::run('DELETE FROM personaggi WHERE id = ?', [(int) $p['id']]);
             \App\Support\Audit::log('admin.personaggio_cancellato', null, 'user', (int) $u['id'],
                 ['personaggio' => (int) $p['id'], 'dove' => $dove['citta'] ?? '?', 'via' => 'console']);

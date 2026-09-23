@@ -134,6 +134,8 @@ final class Organico
         try {
             $p = Database::first('SELECT * FROM personaggi WHERE id = ? FOR UPDATE', [$personaggioId]);
             if ($p === null) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Personaggio inesistente.']; }
+            // La pagina non lo offre a chi è dentro; il server ora lo rifiuta.
+            if (Legge::inCarcere($p)) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Da dentro non si ingaggia nessuno.']; }
 
             $tetto = self::quantiNePuoi($p);
             if (self::quantiNeHa($personaggioId) >= $tetto) {
@@ -182,11 +184,19 @@ final class Organico
     /** @return array{ok:bool,error?:string,nome?:string} */
     public static function licenzia(int $personaggioId, int $uomoId): array
     {
-        $u = Database::first('SELECT * FROM uomini WHERE id = ? AND personaggio_id = ?', [$uomoId, $personaggioId]);
-        if ($u === null) { return ['ok' => false, 'error' => 'Non lavora per te.']; }
-        if ((string) $u['stato'] === 'in_viaggio') { return ['ok' => false, 'error' => 'È per strada con la tua roba.']; }
+        // In fila con `manda()`: un corriere licenziato nell'istante in cui
+        // partiva si portava via la corsa (la cancellazione scende a cascata)
+        // e con lei il carico.
+        $u = Fila::per($personaggioId, static function () use ($personaggioId, $uomoId): array|string {
+            $u = Database::first('SELECT * FROM uomini WHERE id = ? AND personaggio_id = ? FOR UPDATE',
+                [$uomoId, $personaggioId]);
+            if ($u === null) { return 'Non lavora per te.'; }
+            if ((string) $u['stato'] === 'in_viaggio') { return 'È per strada con la tua roba.'; }
+            Database::run('DELETE FROM uomini WHERE id = ?', [$uomoId]);
+            return $u;
+        });
+        if (is_string($u)) { return ['ok' => false, 'error' => $u]; }
 
-        Database::run('DELETE FROM uomini WHERE id = ?', [$uomoId]);
         // Mandare via qualcuno che non ti odiava è gratis; mandare via uno che
         // già ti odiava è un rischio che ti porti dietro.
         if ((float) $u['lealta'] < 40) {
@@ -202,6 +212,11 @@ final class Organico
     {
         $u = Database::first('SELECT * FROM uomini WHERE id = ? AND personaggio_id = ?', [$uomoId, $personaggioId]);
         if ($u === null) { return ['ok' => false, 'error' => 'Non lavora per te.']; }
+        // In viaggio `piazza_id` è già la destinazione: lo si metterebbe in
+        // un posto dove non sei ancora arrivato.
+        $p = Database::first('SELECT arrivo_at, carcere_fino_a FROM personaggi WHERE id = ?', [$personaggioId]);
+        if ($p === null || $p['arrivo_at'] !== null) { return ['ok' => false, 'error' => 'Prima arriva tu.']; }
+        if (Legge::inCarcere($p)) { return ['ok' => false, 'error' => 'Da dentro non lo metti da nessuna parte.']; }
         if (!in_array((string) $u['ruolo'], ['vedetta', 'basista'], true)) {
             return ['ok' => false, 'error' => 'Questo mestiere non si fa stando fermi in un posto.'];
         }
@@ -268,6 +283,11 @@ final class Organico
      */
     public static function manda(int $personaggioId, int $uomoId, int $aPiazzaId, int $beneId, int $quantita): array
     {
+        // Senza questo controllo una quantità negativa arrivava fino
+        // all'INSERT della corsa, che la rifiutava con un errore 500.
+        if ($quantita <= 0) {
+            return ['ok' => false, 'error' => 'Quante unità, di preciso?'];
+        }
         $pdo = Database::pdo();
         $pdo->beginTransaction();
         try {
@@ -278,6 +298,7 @@ final class Organico
             if ((string) $u['ruolo'] !== 'corriere') { $pdo->rollBack(); return ['ok' => false, 'error' => 'Non è un corriere.']; }
             if ((string) $u['stato'] !== 'libero') { $pdo->rollBack(); return ['ok' => false, 'error' => 'Non è disponibile.']; }
             if ($p['arrivo_at'] !== null) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Prima arriva tu.']; }
+            if (Legge::inCarcere($p)) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Da dentro non parte niente.']; }
 
             $dest = Logistica::deposito($personaggioId, $aPiazzaId);
             if ($dest === null) {
@@ -341,54 +362,69 @@ final class Organico
     {
         $arrivate = 0; $perse = 0;
         foreach (Database::all(
-            'SELECT c.*, u.lealta, u.competenza, u.nome AS corriere, p.calore, p.calore_agg_a
-               FROM corse c JOIN uomini u ON u.id = c.uomo_id JOIN personaggi p ON p.id = c.personaggio_id
+            'SELECT c.id, c.personaggio_id FROM corse c
               WHERE c.esito = \'in_corso\' AND c.arrivo_at <= ?', [Clock::perDb()]
-        ) as $c) {
-            $pid = (int) $c['personaggio_id'];
-            $calore = Legge::calorePersonale($c);
-            // Il rischio di perdere un carico: la lealtà conta più di tutto.
-            $rischio = min(0.6, (1.0 - (float) $c['lealta'] / 100.0) * 0.35 + $calore / 1500.0);
-
-            if (random_int(1, 1000) / 1000 < $rischio) {
-                $sparito = (float) $c['lealta'] < 45;
-                Database::run('UPDATE corse SET esito = ?, chiusa_at = ? WHERE id = ?',
-                    [$sparito ? 'sparita' : 'sequestrata', Clock::perDb(), (int) $c['id']]);
-                Database::run('UPDATE uomini SET stato = ? WHERE id = ?',
-                    [$sparito ? 'sparito' : 'libero', (int) $c['uomo_id']]);
-                Legge::segnale($pid, 'corsa', $sparito
-                    ? $c['corriere'] . ' non è mai arrivato a destinazione. Nemmeno lui.'
-                    : $c['corriere'] . ' è stato fermato per strada: la roba se n\'è andata.', 4);
-                if (!$sparito) {
-                    Legge::prove($pid, 8.0, 'un corriere fermato');
-                }
-                Contabilita::segna($pid, 'corsa', 'sporco', 0,
-                    'persa una corsa: ' . quantita((int) $c['quantita']) . ' unità, ' . lire((int) $c['costo_totale']));
-                $perse++;
-                continue;
-            }
-
-            $dep = Logistica::deposito($pid, (int) $c['a_piazza_id']);
-            if ($dep === null) {
-                // Il deposito è sparito mentre era per strada (sfratto): la
-                // roba resta al corriere, che la riporta indietro come può.
-                Legge::segnale($pid, 'corsa',
-                    $c['corriere'] . ' è arrivato e non ha trovato il deposito. Ha lasciato tutto dov\'era.', 3);
-            } else {
-                Database::run(
-                    'INSERT INTO deposito_merce (deposito_id, bene_id, quantita, costo_totale) VALUES (?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE quantita = quantita + VALUES(quantita),
-                                             costo_totale = costo_totale + VALUES(costo_totale)',
-                    [(int) $dep['id'], (int) $c['bene_id'], (int) $c['quantita'], (int) $c['costo_totale']]
-                );
-            }
-            Database::run('UPDATE corse SET esito = \'arrivata\', chiusa_at = ? WHERE id = ?',
-                [Clock::perDb(), (int) $c['id']]);
-            Database::run('UPDATE uomini SET stato = \'libero\', piazza_id = ? WHERE id = ?',
-                [(int) $c['a_piazza_id'], (int) $c['uomo_id']]);
-            $arrivate++;
+        ) as $r) {
+            // Il padrone in fila e la corsa bloccata e riletta: un rapinatore
+            // può averla presa un attimo fa, e allora non va consegnata.
+            $esito = Fila::per((int) $r['personaggio_id'], static fn() => self::chiudiCorsa((int) $r['id']));
+            if ($esito === 'arrivata') { $arrivate++; }
+            if ($esito === 'persa') { $perse++; }
         }
         return ['arrivate' => $arrivate, 'perse' => $perse];
+    }
+
+    /** @return string|null 'arrivata', 'persa', o null se non c'era più niente da chiudere */
+    private static function chiudiCorsa(int $corsaId): ?string
+    {
+        $c = Database::first(
+            'SELECT c.*, u.lealta, u.competenza, u.nome AS corriere, p.calore, p.calore_agg_a
+               FROM corse c JOIN uomini u ON u.id = c.uomo_id JOIN personaggi p ON p.id = c.personaggio_id
+              WHERE c.id = ? AND c.esito = \'in_corso\' FOR UPDATE', [$corsaId]);
+        if ($c === null) {
+            return null;
+        }
+        $pid = (int) $c['personaggio_id'];
+        $calore = Legge::calorePersonale($c);
+        // Il rischio di perdere un carico: la lealtà conta più di tutto.
+        $rischio = min(0.6, (1.0 - (float) $c['lealta'] / 100.0) * 0.35 + $calore / 1500.0);
+
+        if (random_int(1, 1000) / 1000 < $rischio) {
+            $sparito = (float) $c['lealta'] < 45;
+            Database::run('UPDATE corse SET esito = ?, chiusa_at = ? WHERE id = ?',
+                [$sparito ? 'sparita' : 'sequestrata', Clock::perDb(), (int) $c['id']]);
+            Database::run('UPDATE uomini SET stato = ? WHERE id = ?',
+                [$sparito ? 'sparito' : 'libero', (int) $c['uomo_id']]);
+            Legge::segnale($pid, 'corsa', $sparito
+                ? $c['corriere'] . ' non è mai arrivato a destinazione. Nemmeno lui.'
+                : $c['corriere'] . ' è stato fermato per strada: la roba se n\'è andata.', 4);
+            if (!$sparito) {
+                Legge::prove($pid, 8.0, 'un corriere fermato');
+            }
+            Contabilita::segna($pid, 'corsa', 'sporco', 0,
+                'persa una corsa: ' . quantita((int) $c['quantita']) . ' unità, ' . lire((int) $c['costo_totale']));
+            return 'persa';
+        }
+
+        $dep = Logistica::deposito($pid, (int) $c['a_piazza_id']);
+        if ($dep === null) {
+            // Il deposito è sparito mentre era per strada (sfratto): la
+            // roba resta al corriere, che la riporta indietro come può.
+            Legge::segnale($pid, 'corsa',
+                $c['corriere'] . ' è arrivato e non ha trovato il deposito. Ha lasciato tutto dov\'era.', 3);
+        } else {
+            Database::run(
+                'INSERT INTO deposito_merce (deposito_id, bene_id, quantita, costo_totale) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE quantita = quantita + VALUES(quantita),
+                                         costo_totale = costo_totale + VALUES(costo_totale)',
+                [(int) $dep['id'], (int) $c['bene_id'], (int) $c['quantita'], (int) $c['costo_totale']]
+            );
+        }
+        Database::run('UPDATE corse SET esito = \'arrivata\', chiusa_at = ? WHERE id = ?',
+            [Clock::perDb(), (int) $c['id']]);
+        Database::run('UPDATE uomini SET stato = \'libero\', piazza_id = ? WHERE id = ?',
+            [(int) $c['a_piazza_id'], (int) $c['uomo_id']]);
+        return 'arrivata';
     }
 
     // --- Stipendi e lealtà ----------------------------------------------------------
@@ -405,38 +441,55 @@ final class Organico
         $pagati = 0; $nonPagati = 0;
         $calo = (float) GameConfig::get('organico.lealta_calo', 0.35);
 
-        foreach (Database::all('SELECT * FROM uomini WHERE pagato_fino_a <= ? AND stato <> \'sparito\'',
-            [Clock::perDb($ora)]) as $u) {
-            $fino = Clock::daDb((string) $u['pagato_fino_a']);
-            $ore = $fino === null ? 1 : (int) floor(($ora->getTimestamp() - $fino->getTimestamp()) / 3600);
-            if ($ore < 1) { continue; }
-            $dovuto = $ore * (int) $u['stipendio_ora'];
-
-            $p = Database::first('SELECT contante FROM personaggi WHERE id = ?', [(int) $u['personaggio_id']]);
-            if ($p !== null && (int) $p['contante'] >= $dovuto) {
-                Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?',
-                    [$dovuto, (int) $u['personaggio_id']]);
-                Database::run(
-                    'UPDATE uomini SET pagato_fino_a = DATE_ADD(pagato_fino_a, INTERVAL ? HOUR),
-                            lealta = LEAST(100, lealta + ?) WHERE id = ?',
-                    [$ore, min(2.0, $ore * 0.15), (int) $u['id']]
-                );
-                Contabilita::segna((int) $u['personaggio_id'], 'stipendi', 'sporco', -$dovuto,
-                    $u['nome'] . ', ' . $ore . ' ore');
-                // Pagare puntuale è amministrare, e amministrare insegna.
-                self::cresci((int) $u['personaggio_id'], 'organizzazione', min(1.0, $ore * 0.15));
-                self::reputazione((int) $u['personaggio_id'], min(0.4, $ore * 0.06));
-                $pagati++;
-                continue;
-            }
-
-            Database::run('UPDATE uomini SET lealta = GREATEST(0, lealta - ?), pagato_fino_a = ? WHERE id = ?',
-                [$calo * $ore, Clock::perDb($ora), (int) $u['id']]);
-            Contabilita::segna((int) $u['personaggio_id'], 'stipendi', 'sporco', 0,
-                'non pagato: ' . $u['nome'] . ' (' . $ore . ' ore)');
-            $nonPagati++;
+        foreach (Database::all('SELECT id, personaggio_id FROM uomini WHERE pagato_fino_a <= ? AND stato <> \'sparito\'',
+            [Clock::perDb($ora)]) as $r) {
+            // Il saldo si guarda e si addebita col padrone in fila: con un
+            // acquisto in piazza nello stesso istante, il contante andava
+            // sotto zero.
+            $esito = Fila::per((int) $r['personaggio_id'],
+                static fn(?array $p) => self::pagaUno((int) $r['id'], $p, $ora, $calo));
+            if ($esito === true) { $pagati++; }
+            if ($esito === false) { $nonPagati++; }
         }
         return ['pagati' => $pagati, 'non_pagati' => $nonPagati];
+    }
+
+    /**
+     * @param array<string,mixed>|null $p il padrone, bloccato
+     * @return bool|null true pagato, false non pagato, null niente da fare
+     */
+    private static function pagaUno(int $uomoId, ?array $p, \DateTimeImmutable $ora, float $calo): ?bool
+    {
+        $u = Database::first('SELECT * FROM uomini WHERE id = ? AND stato <> \'sparito\' FOR UPDATE', [$uomoId]);
+        if ($u === null) {
+            return null;
+        }
+        $fino = Clock::daDb((string) $u['pagato_fino_a']);
+        $ore = $fino === null ? 1 : (int) floor(($ora->getTimestamp() - $fino->getTimestamp()) / 3600);
+        if ($ore < 1) { return null; }
+        $dovuto = $ore * (int) $u['stipendio_ora'];
+
+        if ($p !== null && (int) $p['contante'] >= $dovuto) {
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?',
+                [$dovuto, (int) $u['personaggio_id']]);
+            Database::run(
+                'UPDATE uomini SET pagato_fino_a = DATE_ADD(pagato_fino_a, INTERVAL ? HOUR),
+                        lealta = LEAST(100, lealta + ?) WHERE id = ?',
+                [$ore, min(2.0, $ore * 0.15), (int) $u['id']]
+            );
+            Contabilita::segna((int) $u['personaggio_id'], 'stipendi', 'sporco', -$dovuto,
+                $u['nome'] . ', ' . $ore . ' ore');
+            // Pagare puntuale è amministrare, e amministrare insegna.
+            self::cresci((int) $u['personaggio_id'], 'organizzazione', min(1.0, $ore * 0.15));
+            self::reputazione((int) $u['personaggio_id'], min(0.4, $ore * 0.06));
+            return true;
+        }
+
+        Database::run('UPDATE uomini SET lealta = GREATEST(0, lealta - ?), pagato_fino_a = ? WHERE id = ?',
+            [$calo * $ore, Clock::perDb($ora), (int) $u['id']]);
+        Contabilita::segna((int) $u['personaggio_id'], 'stipendi', 'sporco', 0,
+            'non pagato: ' . $u['nome'] . ' (' . $ore . ' ore)');
+        return false;
     }
 
     /**

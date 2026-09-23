@@ -81,6 +81,9 @@ $router->post('/batteria/fonda', [RivaliController::class, 'fonda'], ['active', 
 $router->post('/batteria/entra', [RivaliController::class, 'entra'], ['active', 'throttle']);
 $router->post('/batteria/esci', [RivaliController::class, 'esci'], ['active', 'throttle']);
 $router->post('/batteria/cassa', [RivaliController::class, 'cassa'], ['active', 'throttle']);
+$router->post('/batteria/capo', [RivaliController::class, 'capo'], ['active', 'throttle']);
+$router->post('/batteria/domanda', [RivaliController::class, 'domanda'], ['active', 'throttle']);
+$router->post('/batteria/caccia', [RivaliController::class, 'caccia'], ['active', 'throttle']);
 
 // --- La legge ----------------------------------------------------------------
 $router->get('/fascicolo', [LeggeController::class, 'fascicolo'], ['active']);

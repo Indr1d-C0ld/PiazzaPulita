@@ -10,6 +10,9 @@ use App\Sim\Viaggio;
     <p class="sommario">Ne esci fra <strong><?= e(Viaggio::durata((int) ceil($mancano / 60))) ?></strong>.
        Fino ad allora non c'è niente da fare.</p>
   </div>
+<?php elseif ($salute < 100): ?>
+  <p class="avviso">Sei ancora acciaccato: salute <strong><?= (int) $salute ?> su 100</strong>.
+     In una rissa si comincia da lì. Torna da sola, <?= (int) $guarigione ?> punti l'ora.</p>
 <?php endif; ?>
 
 <div class="foglio">

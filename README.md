@@ -265,7 +265,9 @@ morta per ore. Sopra ci sta quello che va scritto — colpire una persona invece
 
 - **Le mani addosso.** Due punteggi contrapposti, un tiro di danno per arma, le guardie che
   sparano e incassano, sei round al massimo: è una rissa per strada, non un duello. Chi
-  perde va all'ospedale a tempo reale.
+  perde va all'ospedale a tempo reale; chi ne esce solo acciaccato guarisce da sé, **dieci
+  punti di salute l'ora**, e la pagina degli altri gli dice a che punto è — in una rissa si
+  comincia da lì.
 - **Il bottino è solo quello che la vittima aveva addosso** — mai il pulito, mai i canali,
   mai gli immobili. In `dopewars` si prendeva tutto: su un personaggio costruito in tre mesi
   è la fine del gioco per la vittima e, dopo un po', per il server.
@@ -276,14 +278,21 @@ morta per ore. Sopra ci sta quello che va scritto — colpire una persona invece
   Una volta su quattro la registrano, e le prove se le prende chi ha chiamato.
 - **La spia** (3.000.000, e l'uomo lo perdi comunque): un tuo uomo dentro casa d'altri.
   Finché non la scoprono vedi quello che vede lei — contante, pulito, debito, calore,
-  uomini, carico. Alla scoperta, quattro esiti come nell'originale: uccisa, scappata,
-  voltafaccia, o semplicemente finita.
+  uomini, carico. Alla scoperta, quattro esiti come nell'originale: **uccisa**, **torturata**
+  (e allora chi spiavi viene a sapere il tuo nome), **scappata**, o **passata al nemico**, che
+  porta le prove al tuo fascicolo.
+- Soffiata e spia si fanno **a chi è nella tua piazza**, come tutto quello che offre la
+  vetrina dei presenti — e non da una cella né da un letto d'ospedale.
 - **La rapina ai carichi**: le corse dei corrieri altrui che passano di lì si possono
   fermare. Non manda nessuno all'ospedale — è il modo di farsi male a vicenda che lascia
   tutti in piedi.
 
 **Le batterie** si fondano con 10.000.000 di lire pulite, hanno una cassa comune da cui
-preleva solo il capo, e possono **tenere una piazza**. Il territorio però non si conquista
+preleva solo il capo, e possono **tenere una piazza**. **Non ci si entra: si chiede**, e
+decide il capo — se bastasse un clic, il pizzo si eviterebbe entrando nella batteria che
+comanda la piazza, e chiunque diventerebbe intoccabile per i suoi membri. Il capo può
+**mandare via** uno dei suoi e **passare la mano**; per lasciare una batteria con dentro
+qualcuno, prima deve farlo. Se il capo sparisce, comanda il più rispettato dei suoi. Il territorio però non si conquista
 premendo un pulsante: ogni lira movimentata lì lascia punti di presenza alla batteria di chi
 l'ha movimentata, **la presenza si dimezza ogni 72 ore**, e sopra soglia la piazza passa.
 Chi comanda incassa il **4%** su quello che ci trattano gli estranei. È la logica del
@@ -384,7 +393,19 @@ I moduli **puri** stanno in `src/Sim/` e non toccano il database, quindi si prov
 Sopra, `src/Game/` tiene il gioco vero (mondo, carta, listino, contabilità, logistica,
 legge, organico, rivalità, batterie, chiacchiera, baratto, classifiche, obiettivi,
 statistiche) e `src/Controllers/` le
-settantacinque rotte dell'interfaccia.
+settantotto rotte dell'interfaccia.
+
+**Una fila per giocatore.** Il gioco gira in processi che non si parlano: il battito ogni
+minuto, e una richiesta web per ogni clic — due, se si gioca col telefono e col computer
+aperti insieme. Tutto quello che legge un saldo e lo riscrive passa da `Fila`: prima si
+blocca la riga del personaggio (`SELECT … FOR UPDATE`), poi il resto; quando i personaggi
+sono due — uno scontro, un baratto, un passaggio di mano — si bloccano in ordine di id,
+così due azioni incrociate non si aspettano a vicenda per sempre. Dove il battito aggiorna
+righe che anche le pagine toccano (mercati, calore, presenze sul territorio) scrive solo
+se la riga è ancora quella che ha letto. Non è prudenza astratta: senza, dodici sessioni
+dello stesso giocatore facevano accreditare lo stesso lavaggio due volte, il capo di una
+batteria prelevava dieci milioni da una cassa che ne aveva cinque, e due aggressori si
+prendevano entrambi lo stesso bottino. `tests/e2e_corse.sh` lo rifà a ogni giro.
 
 ## Installazione
 
@@ -450,7 +471,7 @@ Il codice non serve salvarlo: sta qui.
 ## Prove e strumenti
 
 ```bash
-php tests/test_unita.php      # 266 verifiche, senza rete e senza database
+php tests/test_unita.php      # 280 verifiche, senza rete e senza database
 bash tests/e2e_auth.sh        # iscrizione, conferma, accesso, profilo — attraverso Apache
 bash tests/e2e_mondo.sh       # nascita, viaggi, arrivi, registro
 bash tests/e2e_mercato.sh     # compravendita, impatto sul prezzo, fotografia
@@ -460,12 +481,18 @@ bash tests/e2e_organico.sh    # attributi, uomini, corrieri, pentiti, fornitori
 bash tests/e2e_rivalita.sh    # due giocatori veri: botte, bottino, spie, batterie, pizzo
 bash tests/e2e_rifinitura.sh  # obiettivi, graduatorie, albo d'oro, admin, installabilità
 bash tests/e2e_gente.sh       # vedersi, parlarsi, barattare, e la carta dell'admin
+bash tests/e2e_corse.sh       # dieci sessioni insieme: il denaro non si crea e la merce non si sdoppia
 bash tests/browser_avatar.sh  # il riquadro della foto, in Chromium headless
 bash tests/browser_schermi.sh # telefono e tablet: niente scorrimento laterale, 44px col dito
 ```
 
-Undici suite: le unitarie sui moduli puri, nove end-to-end che girano **attraverso Apache
-sull'installazione vera** (non su un simulacro), e due in un browser. Una di loro non usa `curl` ma **Chromium headless**, e c'è per un motivo
+Dodici suite: le unitarie sui moduli puri, dieci end-to-end che girano **attraverso Apache
+sull'installazione vera** (non su un simulacro), e due in un browser. Quella delle corse
+manda la stessa richiesta da dieci sessioni vere nello stesso istante, col battito che
+passa in mezzo, e controlla gli invarianti che una corsa romperebbe: coda + lavato uguale
+al messo a lavare, la cassa che non va sotto zero, il contante di tre giocatori che
+sommato non cambia dopo uno scontro, una corsa di corriere che finisce in un posto solo.
+Girata contro il codice di prima, falliva sette volte. Una di loro non usa `curl` ma **Chromium headless**, e c'è per un motivo
 imparato sul campo: `curl` non è un browser — non applica la CSP, non impagina niente, non
 esegue JavaScript. Due guasti del riquadro della fotografia sono passati esattamente da lì
 senza far diventare rossa una sola verifica. Se non c'è Chromium, quella prova si salta

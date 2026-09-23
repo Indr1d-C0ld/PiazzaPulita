@@ -1,4 +1,4 @@
-<?php /** @var array $p @var array|null $mia @var list $elenco */ ?>
+<?php /** @var array $p @var array|null $mia @var list $elenco @var list $domande @var array|null $miaDomanda */ ?>
 
 <?php if ($mia === null): ?>
 <div class="foglio">
@@ -28,6 +28,12 @@
 
     <section class="riquadro">
       <h2>Entrare in una</h2>
+      <p class="minuto">Non si entra: si chiede. Decide chi comanda, e una domanda alla
+         volta — chiederne un'altra ritira la prima.</p>
+      <?php if ($miaDomanda !== null): ?>
+        <p class="avviso">Hai chiesto di entrare in <strong><?= e($miaDomanda['nome']) ?></strong>
+           (<?= e($miaDomanda['sigla']) ?>) il <?= e(fmt_dt($miaDomanda['fatta_at'])) ?>. Aspetti la risposta.</p>
+      <?php endif; ?>
       <?php if ($elenco === []): ?>
         <p class="minuto">Non ce n'è ancora nessuna. Il paese è tutto da spartire.</p>
       <?php else: ?>
@@ -46,7 +52,7 @@
                 <td>
                   <form method="post" action="<?= e(url('/batteria/entra')) ?>">
                     <?= csrf_field() ?><input type="hidden" name="batteria" value="<?= (int) $b['id'] ?>">
-                    <button class="bottone--fantasma bottone--minuto">entra</button>
+                    <button class="bottone--fantasma bottone--minuto">chiedi</button>
                   </form>
                 </td>
               </tr>
@@ -99,7 +105,7 @@
     <h2 style="margin-top:0">Chi c'è dentro</h2>
     <div class="tabella-avvolgi">
       <table class="tabella">
-        <thead><tr><th>Chi</th><th class="num">Rispetto</th><th class="num">Timore</th></tr></thead>
+        <thead><tr><th>Chi</th><th class="num">Rispetto</th><th class="num">Timore</th><?= $sonoCapo ? '<th></th>' : '' ?></tr></thead>
         <tbody>
         <?php foreach ($membri as $m): ?>
           <tr>
@@ -107,11 +113,61 @@
                 <?= (int) $m['id'] === (int) $mia['capo_id'] ? ' <span class="stato stato--attivo">capo</span>' : '' ?></td>
             <td class="num"><?= (int) $m['rispetto'] ?></td>
             <td class="num"><?= (int) $m['timore'] ?></td>
+            <?php if ($sonoCapo): ?>
+              <td><?php if ((int) $m['id'] !== (int) $mia['capo_id']): ?>
+                <form method="post" action="<?= e(url('/batteria/caccia')) ?>">
+                  <?= csrf_field() ?><input type="hidden" name="membro" value="<?= (int) $m['id'] ?>">
+                  <button class="bottone--fantasma bottone--minuto">caccia</button>
+                </form>
+              <?php endif; ?></td>
+            <?php endif; ?>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table>
     </div>
+    <?php if ($sonoCapo && $domande !== []): ?>
+      <h3>Chi chiede di entrare</h3>
+      <div class="tabella-avvolgi">
+        <table class="tabella">
+          <thead><tr><th>Chi</th><th class="num">Rispetto</th><th class="num">Timore</th><th class="num">Profilo</th><th></th></tr></thead>
+          <tbody>
+          <?php foreach ($domande as $d): ?>
+            <tr>
+              <td><a href="<?= e(url('/profilo/' . $d['id'])) ?>"><?= e($d['username']) ?></a></td>
+              <td class="num"><?= (int) $d['rispetto'] ?></td>
+              <td class="num"><?= (int) $d['timore'] ?></td>
+              <td class="num"><?= (int) $d['profilo'] ?></td>
+              <td>
+                <form method="post" action="<?= e(url('/batteria/domanda')) ?>" class="bottoniera">
+                  <?= csrf_field() ?><input type="hidden" name="chi" value="<?= (int) $d['id'] ?>">
+                  <button name="esito" value="si" class="bottone--minuto">prendilo</button>
+                  <button name="esito" value="no" class="bottone--fantasma bottone--minuto">no</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+    <?php if ($sonoCapo && count($membri) > 1): ?>
+      <form method="post" action="<?= e(url('/batteria/capo')) ?>" class="modulo" style="margin-top:1rem">
+        <?= csrf_field() ?>
+        <label>Passa la mano a
+          <select name="membro" required>
+            <?php foreach ($membri as $m): ?>
+              <?php if ((int) $m['id'] !== (int) $mia['capo_id']): ?>
+                <option value="<?= (int) $m['id'] ?>"><?= e($m['username']) ?></option>
+              <?php endif; ?>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <p class="minuto">Chi comanda è l'unico che preleva dalla cassa.
+           Un capo con qualcuno dentro, per uscire, prima deve lasciare il posto.</p>
+        <button type="submit" class="bottone--fantasma bottone--minuto">Passa la mano</button>
+      </form>
+    <?php endif; ?>
     <form method="post" action="<?= e(url('/batteria/esci')) ?>" style="margin-top:1rem">
       <?= csrf_field() ?>
       <button class="bottone--fantasma bottone--minuto">Esci dalla batteria</button>

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Piazza Pulita — bootstrap dell'ambiente su Balthasar.
+# Piazza Pulita — bootstrap dell'ambiente sul server.
 # Da eseguire UNA VOLTA con sudo:   sudo bash deploy/00-bootstrap.sh
 #
 # Idempotente: puo' essere rilanciato senza danni. Non tocca i vhost esistenti
@@ -186,9 +186,8 @@ cat <<SUMMARY
     La password del DB e' SOLO dentro ${CONFIG_FILE} (0640). Non compare nei log.
 
     Prossimi passi (da utente normale, non root):
-      rsync -a --delete --exclude fonti/ --exclude config/ --exclude .git \\
-            /data/claude/PiazzaPulita/ ${PROJECT_DIR}/
-      php ${PROJECT_DIR}/bin/console.php migrate
+      bash deploy/01-installa.sh        (dalla cartella del repository: copia,
+                                         migra, semina il mondo e controlla)
       php ${PROJECT_DIR}/bin/console.php status
 
     Battito (manutenzione posta e freni), nel crontab di ${OWNER_USER}:

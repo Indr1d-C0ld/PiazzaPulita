@@ -54,6 +54,18 @@ final class Logistica
         return self::CAPIENZA_BASE + ($m === null ? 0 : $m['capienza']);
     }
 
+    /**
+     * Quanto rende il mezzo che hai, se lo cambi: di seconda mano e di fretta,
+     * la metà.
+     *
+     * @param array<string,mixed> $p
+     */
+    public static function rivendita(array $p): int
+    {
+        $m = $p['mezzo'] === null ? null : (self::mezzi()[(string) $p['mezzo']] ?? null);
+        return $m === null ? 0 : (int) round($m['prezzo'] * 0.5);
+    }
+
     /** @return array{ok:bool,error?:string} */
     public static function compraMezzo(int $personaggioId, string $codice): array
     {
@@ -68,7 +80,12 @@ final class Logistica
             $p = Database::first('SELECT * FROM personaggi WHERE id = ? FOR UPDATE', [$personaggioId]);
             if ($p === null) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Personaggio inesistente.']; }
             if ((string) $p['mezzo'] === $codice) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Ce l\'hai già.']; }
-            if ((int) $p['pulito'] < $m['prezzo']) {
+
+            $indietro = self::rivendita($p);
+            // Si guarda la spesa vera, al netto di quello che rende il vecchio:
+            // prima si chiedeva il prezzo pieno in tasca, e chi poteva
+            // permettersi il cambio si sentiva dire che non aveva i soldi.
+            if ((int) $p['pulito'] + $indietro < $m['prezzo']) {
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Serve denaro pulito: ' . lire((int) $m['prezzo'])
                     . ' Un mezzo va intestato a qualcuno, e nessuno intesta niente a una borsa di contanti.'];
@@ -83,13 +100,6 @@ final class Logistica
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Con quel mezzo non ci sta quello che hai addosso ('
                     . quantita($usato) . ' spazi contro ' . quantita($nuova) . '). Scarica prima.'];
-            }
-
-            $indietro = 0;
-            if ($p['mezzo'] !== null) {
-                // Il vecchio si rivende, ma di seconda mano e di fretta: metà.
-                $vecchio = self::mezzi()[(string) $p['mezzo']] ?? null;
-                $indietro = $vecchio === null ? 0 : (int) round($vecchio['prezzo'] * 0.5);
             }
 
             Database::run('UPDATE personaggi SET mezzo = ?, pulito = pulito - ? + ?, capienza = ? WHERE id = ?',
@@ -164,6 +174,12 @@ final class Logistica
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Un posto si affitta di persona.'];
             }
+            // Come per il mercato: il deposito sta sulla pagina della strada,
+            // che a chi è dentro o all'ospedale non si apre.
+            if (Legge::inCarcere($p) || Rivalita::inOspedale($p)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'error' => 'Adesso non sei in condizione.'];
+            }
             if (self::deposito($personaggioId, $piazzaId) !== null) {
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'Qui ne hai già uno.'];
@@ -208,6 +224,10 @@ final class Logistica
             if ($p === null || $p['arrivo_at'] !== null) {
                 $pdo->rollBack();
                 return ['ok' => false, 'error' => 'In viaggio non si sposta niente.'];
+            }
+            if (Legge::inCarcere($p) || Rivalita::inOspedale($p)) {
+                $pdo->rollBack();
+                return ['ok' => false, 'error' => 'Adesso non sei in condizione.'];
             }
             $d = self::deposito($personaggioId, (int) $p['piazza_id']);
             if ($d === null) { $pdo->rollBack(); return ['ok' => false, 'error' => 'Qui non hai un deposito.']; }
@@ -292,37 +312,52 @@ final class Logistica
         $ora = Clock::adesso();
         $riscossi = 0; $persi = 0;
 
-        foreach (Database::all('SELECT * FROM depositi WHERE pagato_fino_a <= ?', [Clock::perDb($ora)]) as $d) {
-            $fino = Clock::daDb((string) $d['pagato_fino_a']);
-            // Si fatturano solo le ore INTERE consumate, e `pagato_fino_a`
-            // avanza esattamente di quelle. Con l'arrotondamento per eccesso un
-            // battito che passa un secondo dopo la scadenza addebitava un'ora
-            // intera in più: non è un buco — si finiva per aver pagato in
-            // anticipo — ma i conti diventavano illeggibili, e un conto che il
-            // giocatore non sa rifare è un conto di cui non si fida.
-            $ore = $fino === null ? 1 : (int) floor(($ora->getTimestamp() - $fino->getTimestamp()) / 3600);
-            if ($ore < 1) {
-                continue;
-            }
-            $dovuto = $ore * (int) $d['affitto_ora'];
-
-            $p = Database::first('SELECT contante FROM personaggi WHERE id = ?', [(int) $d['personaggio_id']]);
-            if ($p !== null && (int) $p['contante'] >= $dovuto) {
-                Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?',
-                    [$dovuto, (int) $d['personaggio_id']]);
-                Database::run('UPDATE depositi SET pagato_fino_a = DATE_ADD(pagato_fino_a, INTERVAL ? HOUR) WHERE id = ?',
-                    [$ore, (int) $d['id']]);
-                Contabilita::segna((int) $d['personaggio_id'], 'affitto', 'sporco', -$dovuto,
-                    'affitto del deposito, ' . $ore . ' ore');
-                $riscossi++;
-                continue;
-            }
-
-            Contabilita::segna((int) $d['personaggio_id'], 'sfratto', 'sporco', 0,
-                'deposito perso: non c\'erano ' . lire($dovuto) . ' per l\'affitto');
-            Database::run('DELETE FROM depositi WHERE id = ?', [(int) $d['id']]);
-            $persi++;
+        foreach (Database::all('SELECT id, personaggio_id FROM depositi WHERE pagato_fino_a <= ?', [Clock::perDb($ora)]) as $r) {
+            // Col padrone in fila: il saldo si guarda e si addebita insieme, e
+            // lo sfratto non può cadere a metà di uno spostamento di merce.
+            $esito = Fila::per((int) $r['personaggio_id'], static fn(?array $p) => self::riscuotiUno((int) $r['id'], $p, $ora));
+            if ($esito === true) { $riscossi++; }
+            if ($esito === false) { $persi++; }
         }
         return ['riscossi' => $riscossi, 'persi' => $persi];
+    }
+
+    /**
+     * @param array<string,mixed>|null $p il padrone, bloccato
+     * @return bool|null true riscosso, false sfrattato, null niente da fare
+     */
+    private static function riscuotiUno(int $depositoId, ?array $p, \DateTimeImmutable $ora): ?bool
+    {
+        $d = Database::first('SELECT * FROM depositi WHERE id = ? FOR UPDATE', [$depositoId]);
+        if ($d === null) {
+            return null;
+        }
+        $fino = Clock::daDb((string) $d['pagato_fino_a']);
+        // Si fatturano solo le ore INTERE consumate, e `pagato_fino_a`
+        // avanza esattamente di quelle. Con l'arrotondamento per eccesso un
+        // battito che passa un secondo dopo la scadenza addebitava un'ora
+        // intera in più: non è un buco — si finiva per aver pagato in
+        // anticipo — ma i conti diventavano illeggibili, e un conto che il
+        // giocatore non sa rifare è un conto di cui non si fida.
+        $ore = $fino === null ? 1 : (int) floor(($ora->getTimestamp() - $fino->getTimestamp()) / 3600);
+        if ($ore < 1) {
+            return null;
+        }
+        $dovuto = $ore * (int) $d['affitto_ora'];
+
+        if ($p !== null && (int) $p['contante'] >= $dovuto) {
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?',
+                [$dovuto, (int) $d['personaggio_id']]);
+            Database::run('UPDATE depositi SET pagato_fino_a = DATE_ADD(pagato_fino_a, INTERVAL ? HOUR) WHERE id = ?',
+                [$ore, (int) $d['id']]);
+            Contabilita::segna((int) $d['personaggio_id'], 'affitto', 'sporco', -$dovuto,
+                'affitto del deposito, ' . $ore . ' ore');
+            return true;
+        }
+
+        Contabilita::segna((int) $d['personaggio_id'], 'sfratto', 'sporco', 0,
+            'deposito perso: non c\'erano ' . lire($dovuto) . ' per l\'affitto');
+        Database::run('DELETE FROM depositi WHERE id = ?', [(int) $d['id']]);
+        return false;
     }
 }

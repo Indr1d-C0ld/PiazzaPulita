@@ -47,6 +47,41 @@ final class Contabilita
         return self::$catalogo = $f;
     }
 
+    // --- Quello che vale davvero -------------------------------------------------
+
+    /**
+     * Capacità oraria di un canale per QUESTO giocatore: un contabile la alza.
+     *
+     * Sta in un punto solo apposta. Prima la pagina proiettava il lavaggio con
+     * la capacità di listino e il battito lo applicava con quella migliorata dal
+     * contabile: il giocatore vedeva meno di quello che riceveva, e il contabile
+     * sembrava non servire a niente.
+     *
+     * @param array<string,mixed> $eff il risultato di Organico::effetti()
+     */
+    public static function capacitaEffettiva(int $capacita, array $eff): int
+    {
+        return (int) round($capacita * (1.0 + min(0.6, (float) $eff['contabile'] * 0.3)));
+    }
+
+    /** Commissione di un canale per QUESTO giocatore: un riciclatore la abbassa. */
+    public static function commissioneEffettiva(float $commissione, array $eff): float
+    {
+        return max(0.02, $commissione * (1.0 - min(0.35, (float) $eff['riciclatore'] * 0.25)));
+    }
+
+    /**
+     * Il tasso giornaliero che l'usuraio applica a QUESTO giocatore: il credito
+     * lo lima. Prima la pagina mostrava il tasso di listino, mentre il debito
+     * cresceva col tasso limato — la pagina diceva il falso, in peggio.
+     *
+     * @param array<string,mixed> $p
+     */
+    public static function tassoEffettivo(array $p): float
+    {
+        return Crescita::interesse((float) GameConfig::get('denaro.interesse_giorno', 0.10), (float) ($p['credito'] ?? 0));
+    }
+
     // --- Lettura -------------------------------------------------------------
 
     /**
@@ -60,6 +95,7 @@ final class Contabilita
         $ora = Clock::adesso();
         $canali = [];
         $inArrivo = 0;
+        $eff = Organico::effetti((int) $p['id']);
 
         foreach (Database::all(
             'SELECT cp.*, c.nome, c.descrizione, c.commissione, c.capacita, c.ordine
@@ -68,19 +104,20 @@ final class Contabilita
             [(int) $p['id']]
         ) as $r) {
             $da = Clock::daDb((string) $r['agg_a'])?->getTimestamp() ?? $ora->getTimestamp();
-            $l = Denaro::lava((int) $r['coda'], max(0, $ora->getTimestamp() - $da),
-                (int) $r['capacita'], (float) $r['commissione']);
+            $capacita    = self::capacitaEffettiva((int) $r['capacita'], $eff);
+            $commissione = self::commissioneEffettiva((float) $r['commissione'], $eff);
+            $l = Denaro::lava((int) $r['coda'], max(0, $ora->getTimestamp() - $da), $capacita, $commissione);
             $inArrivo += $l['pulito'];
             $canali[] = [
                 'codice'      => (string) $r['canale'],
                 'nome'        => (string) $r['nome'],
                 'descrizione' => (string) $r['descrizione'],
-                'commissione' => (float) $r['commissione'],
-                'capacita'    => (int) $r['capacita'],
+                'commissione' => $commissione,
+                'capacita'    => $capacita,
                 'coda'        => $l['coda'],
                 'pronto'      => $l['pulito'],
                 'lavato'      => (int) $r['lavato'],
-                'finisce_fra' => Denaro::tempoDiLavaggio($l['coda'], (int) $r['capacita']),
+                'finisce_fra' => Denaro::tempoDiLavaggio($l['coda'], $capacita),
             ];
         }
 
@@ -94,7 +131,8 @@ final class Contabilita
             'debito'     => $debito,
             'tetto'      => (int) $p['debito_tetto'],
             'al_tetto'   => (int) $p['debito_tetto'] > 0 && $debito >= (int) $p['debito_tetto'],
-            'interesse_giorno' => (int) round($debito * (float) GameConfig::get('denaro.interesse_giorno', 0.10)),
+            'interesse_giorno' => (int) round($debito * self::tassoEffettivo($p)),
+            'tasso'      => self::tassoEffettivo($p),
             'canali'     => $canali,
             'capacita_ora' => $capacitaTotale,
             'prestabile' => Denaro::prestitoDisponibile($debito, (int) $p['pulito'],
@@ -115,69 +153,95 @@ final class Contabilita
         // Il tetto è già assoluto: si passa 1 come base perché la funzione lo
         // moltiplichi per il tetto e ritrovi lo stesso numero.
         return Denaro::debitoDopo($debito, $tetto > 0 ? $tetto : $debito, max(0, $ora - $da),
-            Crescita::interesse((float) GameConfig::get('denaro.interesse_giorno', 0.10), (float) ($p['credito'] ?? 0)),
-            $tetto > 0 ? 1.0 : 99.0);
+            self::tassoEffettivo($p), $tetto > 0 ? 1.0 : 99.0);
     }
 
     // --- Avanzamento ---------------------------------------------------------
 
-    /** Porta canali e debito ad adesso, e scrive. @return array{pulito:int,lavato:int} */
+    /**
+     * Porta canali e debito ad adesso, e scrive.
+     *
+     * **Tutto dentro una transazione, con la riga del personaggio bloccata.**
+     * Questa funzione la chiamano due processi diversi — il battito, e ogni
+     * apertura della pagina degli affari — e prima non bloccava niente. Due
+     * chiamate nello stesso istante leggevano la stessa coda, calcolavano lo
+     * stesso lavaggio, e lo accreditavano DUE volte: provato, con dodici
+     * sessioni dello stesso giocatore, 32.500 lire pulite al posto di 16.250.
+     * Basta essere collegati da due dispositivi. La stessa corsa, contro
+     * `metti()`, cancellava denaro appena messo in coda, e contro
+     * `restituisci()` annullava una restituzione già pagata.
+     *
+     * Le azioni sul denaro bloccano già la riga del personaggio per prima:
+     * bloccandola anche qui, tutto quello che tocca le due casse passa in fila.
+     *
+     * @return array{pulito:int,lavato:int}
+     */
     public static function avanza(int $personaggioId): array
     {
-        $p = Database::first('SELECT * FROM personaggi WHERE id = ?', [$personaggioId]);
-        if ($p === null) {
-            return ['pulito' => 0, 'lavato' => 0];
-        }
-        $ora = Clock::adesso();
-        $oraTs = $ora->getTimestamp();
-        $pulito = 0;
-        $lavatoTot = 0;
-        // Un contabile fa girare di più, un riciclatore tratta meglio: sono i
-        // due modi di migliorare la lavanderia senza comprarne una nuova.
-        $eff = Organico::effetti($personaggioId);
-
-        foreach (Database::all(
-            'SELECT cp.*, c.capacita, c.commissione FROM canali_posseduti cp
-               JOIN canali c ON c.codice = cp.canale WHERE cp.personaggio_id = ?',
-            [$personaggioId]
-        ) as $r) {
-            if ((int) $r['coda'] <= 0) {
-                Database::run('UPDATE canali_posseduti SET agg_a = ? WHERE personaggio_id = ? AND canale = ?',
-                    [Clock::perDb($ora), $personaggioId, $r['canale']]);
-                continue;
+        $pdo = Database::pdo();
+        $mia = !$pdo->inTransaction();
+        if ($mia) { $pdo->beginTransaction(); }
+        try {
+            $p = Database::first('SELECT * FROM personaggi WHERE id = ? FOR UPDATE', [$personaggioId]);
+            if ($p === null) {
+                if ($mia) { $pdo->commit(); }
+                return ['pulito' => 0, 'lavato' => 0];
             }
-            $da = Clock::daDb((string) $r['agg_a'])?->getTimestamp() ?? $oraTs;
-            $l = Denaro::lava((int) $r['coda'], max(0, $oraTs - $da),
-                (int) round((int) $r['capacita'] * (1.0 + min(0.6, $eff['contabile'] * 0.3))),
-                max(0.02, (float) $r['commissione'] * (1.0 - min(0.35, $eff['riciclatore'] * 0.25))));
-            if ($l['lavato'] <= 0) {
-                continue;
+            $ora = Clock::adesso();
+            $oraTs = $ora->getTimestamp();
+            $pulito = 0;
+            $lavatoTot = 0;
+            // Un contabile fa girare di più, un riciclatore tratta meglio: sono i
+            // due modi di migliorare la lavanderia senza comprarne una nuova.
+            $eff = Organico::effetti($personaggioId);
+
+            foreach (Database::all(
+                'SELECT cp.*, c.capacita, c.commissione FROM canali_posseduti cp
+                   JOIN canali c ON c.codice = cp.canale WHERE cp.personaggio_id = ? FOR UPDATE',
+                [$personaggioId]
+            ) as $r) {
+                if ((int) $r['coda'] <= 0) {
+                    Database::run('UPDATE canali_posseduti SET agg_a = ? WHERE personaggio_id = ? AND canale = ?',
+                        [Clock::perDb($ora), $personaggioId, $r['canale']]);
+                    continue;
+                }
+                $da = Clock::daDb((string) $r['agg_a'])?->getTimestamp() ?? $oraTs;
+                $l = Denaro::lava((int) $r['coda'], max(0, $oraTs - $da),
+                    self::capacitaEffettiva((int) $r['capacita'], $eff),
+                    self::commissioneEffettiva((float) $r['commissione'], $eff));
+                if ($l['lavato'] <= 0) {
+                    continue;
+                }
+                Database::run(
+                    'UPDATE canali_posseduti SET coda = ?, lavato = lavato + ?, agg_a = ?
+                      WHERE personaggio_id = ? AND canale = ?',
+                    [$l['coda'], $l['lavato'], Clock::perDb($ora), $personaggioId, $r['canale']]
+                );
+                $pulito += $l['pulito'];
+                $lavatoTot += $l['lavato'];
             }
-            Database::run(
-                'UPDATE canali_posseduti SET coda = ?, lavato = lavato + ?, agg_a = ?
-                  WHERE personaggio_id = ? AND canale = ?',
-                [$l['coda'], $l['lavato'], Clock::perDb($ora), $personaggioId, $r['canale']]
-            );
-            $pulito += $l['pulito'];
-            $lavatoTot += $l['lavato'];
-        }
 
-        if ($pulito > 0) {
-            Database::run('UPDATE personaggi SET pulito = pulito + ? WHERE id = ?', [$pulito, $personaggioId]);
-            self::segna($personaggioId, 'lavaggio', 'pulito', $pulito,
-                'usciti puliti ' . lire($pulito) . ' da ' . lire($lavatoTot));
-        }
+            if ($pulito > 0) {
+                Database::run('UPDATE personaggi SET pulito = pulito + ? WHERE id = ?', [$pulito, $personaggioId]);
+                self::segna($personaggioId, 'lavaggio', 'pulito', $pulito,
+                    'usciti puliti ' . lire($pulito) . ' da ' . lire($lavatoTot));
+            }
 
-        // Il debito matura da solo, e va scritto: se restasse solo proiettato,
-        // il tetto e le conseguenze non scatterebbero mai per chi non apre la
-        // pagina — cioè proprio per chi sta scappando.
-        $nuovo = self::debitoProiettato($p, $oraTs);
-        if ($nuovo !== (int) $p['debito'] || $p['debito_agg_a'] === null) {
-            Database::run('UPDATE personaggi SET debito = ?, debito_agg_a = ? WHERE id = ?',
-                [$nuovo, Clock::perDb($ora), $personaggioId]);
-        }
+            // Il debito matura da solo, e va scritto: se restasse solo proiettato,
+            // il tetto e le conseguenze non scatterebbero mai per chi non apre la
+            // pagina — cioè proprio per chi sta scappando.
+            $nuovo = self::debitoProiettato($p, $oraTs);
+            if ($nuovo !== (int) $p['debito'] || $p['debito_agg_a'] === null) {
+                Database::run('UPDATE personaggi SET debito = ?, debito_agg_a = ? WHERE id = ?',
+                    [$nuovo, Clock::perDb($ora), $personaggioId]);
+            }
 
-        return ['pulito' => $pulito, 'lavato' => $lavatoTot];
+            if ($mia) { $pdo->commit(); }
+            return ['pulito' => $pulito, 'lavato' => $lavatoTot];
+        } catch (\Throwable $e) {
+            if ($mia && $pdo->inTransaction()) { $pdo->rollBack(); }
+            throw $e;
+        }
     }
 
     /** @return array{personaggi:int,pulito:int} */

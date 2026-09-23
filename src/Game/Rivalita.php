@@ -28,6 +28,7 @@ final class Rivalita
 {
     private const DISCOPERTA = [
         'uccisa'      => 'non è più tornato a casa.',
+        'torturata'   => 'l\'hanno preso e l\'hanno fatto parlare. Adesso sanno che eri tu.',
         'scappata'    => 'è sparito prima che lo prendessero.',
         'voltafaccia' => 'ha cambiato padrone, e adesso racconta di te.',
     ];
@@ -43,8 +44,27 @@ final class Rivalita
             return ['ok' => false, 'error' => 'Con te stesso no.'];
         }
 
-        $a = Database::first('SELECT * FROM personaggi WHERE id = ?', [$attaccanteId]);
-        $d = Database::first('SELECT * FROM personaggi WHERE id = ?', [$difensoreId]);
+        // I due si bloccano insieme, in ordine di id, e lo scontro si decide
+        // sulle righe fresche. Senza, due aggressori che colpivano la stessa
+        // persona nello stesso istante leggevano entrambi il suo contante,
+        // lo azzeravano entrambi e se lo prendevano entrambi: il bottino
+        // raddoppiava dal nulla, e con lui la merce.
+        $esito = Fila::perTutti([$attaccanteId, $difensoreId],
+            static fn(array $righe) => self::scontro($righe[$attaccanteId] ?? null, $righe[$difensoreId] ?? null));
+        if (!$esito['ok']) {
+            return $esito;
+        }
+        return self::dopoLoScontro($attaccanteId, $difensoreId, $esito);
+    }
+
+    /**
+     * Lo scontro vero e proprio, con le due righe bloccate.
+     *
+     * @param array<string,mixed>|null $a @param array<string,mixed>|null $d
+     * @return array<string,mixed>
+     */
+    private static function scontro(?array $a, ?array $d): array
+    {
         if ($a === null || $d === null) {
             return ['ok' => false, 'error' => 'Non c\'è nessuno con quel nome.'];
         }
@@ -61,6 +81,8 @@ final class Rivalita
             return ['ok' => false, 'error' => 'È uno dei tuoi.'];
         }
 
+        $attaccanteId = (int) $a['id'];
+        $difensoreId  = (int) $d['id'];
         $piazzaId = (int) $a['piazza_id'];
         $rng = new Rng((int) (microtime(true) * 1000) ^ $attaccanteId ^ ($difensoreId << 8));
 
@@ -79,8 +101,8 @@ final class Rivalita
         $attD = Scontro::attacco($base, $armiD, $perArma, $guardieD);
         $difD = Scontro::difesa($baseD, $guardieD, $perG, (float) $d['sangue_freddo']);
 
-        $saluteA = (int) $a['salute'];
-        $saluteD = (int) $d['salute'];
+        $saluteA = self::saluteOra($a);
+        $saluteD = self::saluteOra($d);
         $dato = 0; $preso = 0;
         $esito = 'niente';
 
@@ -114,15 +136,16 @@ final class Rivalita
         // --- Il bottino --------------------------------------------------------
         $bottino = 0; $unita = 0;
         if ($esito === 'vinto') {
-            [$bottino, $unita] = self::spoglia($difensoreId, $attaccanteId);
+            [$bottino, $unita] = self::spoglia($d, $a);
         }
 
         // --- Le conseguenze ----------------------------------------------------
         $ospedaleOre = GameConfig::int('pvp.ospedale_ore', 6);
-        Database::run('UPDATE personaggi SET salute = ?, scontri_vinti = scontri_vinti + ? WHERE id = ?',
-            [$saluteA, $esito === 'vinto' ? 1 : 0, $attaccanteId]);
-        Database::run('UPDATE personaggi SET salute = ?, scontri_persi = scontri_persi + ? WHERE id = ?',
-            [$saluteD === 0 ? 100 : $saluteD, $esito === 'vinto' ? 1 : 0, $difensoreId]);
+        // La guarigione riparte da adesso, dal valore che resta.
+        Database::run('UPDATE personaggi SET salute = ?, salute_agg_a = ?, scontri_vinti = scontri_vinti + ? WHERE id = ?',
+            [$saluteA, Clock::perDb(), $esito === 'vinto' ? 1 : 0, $attaccanteId]);
+        Database::run('UPDATE personaggi SET salute = ?, salute_agg_a = ?, scontri_persi = scontri_persi + ? WHERE id = ?',
+            [$saluteD === 0 ? 100 : $saluteD, Clock::perDb(), $esito === 'vinto' ? 1 : 0, $difensoreId]);
 
         if ($esito === 'vinto') {
             Database::run('UPDATE personaggi SET ospedale_fino_a = DATE_ADD(?, INTERVAL ? HOUR) WHERE id = ?',
@@ -134,17 +157,8 @@ final class Rivalita
             Classifica::azzeraLongevita($attaccanteId);
         }
 
-        // Il conto: calore, profilo criminale permanente, timore.
-        Legge::scalda($attaccanteId, $piazzaId, GameConfig::int('pvp.calore', 60) * 1_000_000 / 100, 90);
         Database::run('UPDATE personaggi SET profilo = profilo + 1 WHERE id = ?', [$attaccanteId]);
-        Organico::reputazione($attaccanteId, 0.0, $esito === 'vinto' ? 8.0 : 3.0);
-        if ($esito === 'perso' || $esito === 'fuga') {
-            Organico::reputazione($difensoreId, 0.0, 5.0);
-        }
-        Legge::prove($attaccanteId, 14.0, 'una rissa in strada');
-
         $racconto = self::racconto($esito, $armiA, $armiD, $bottino, $unita);
-
         Database::run(
             'INSERT INTO scontri (attaccante_id, difensore_id, piazza_id, esito, danno_dato, danno_preso,
                                   bottino_sporco, bottino_unita, racconto, fatto_at)
@@ -152,6 +166,32 @@ final class Rivalita
             [$attaccanteId, $difensoreId, $piazzaId, $esito, min(255, $dato), min(255, $preso),
              $bottino, $unita, $racconto, Clock::perDb()]
         );
+
+        return ['ok' => true, 'esito' => $esito, 'racconto' => $racconto, 'piazza' => $piazzaId,
+                'bottino' => $bottino, 'unita' => $unita];
+    }
+
+    /**
+     * Il conto dello scontro, fuori dal lucchetto: calore, prove, voci. Sono
+     * cose che si sommano e basta, e il calore blocca da sé quello che gli
+     * serve.
+     *
+     * @param array<string,mixed> $e l'esito di scontro()
+     * @return array{ok:bool,esito:string,racconto:string,bottino:int,unita:int}
+     */
+    private static function dopoLoScontro(int $attaccanteId, int $difensoreId, array $e): array
+    {
+        $esito = (string) $e['esito'];
+        $racconto = (string) $e['racconto'];
+        $piazzaId = (int) $e['piazza'];
+
+        // Il conto: calore, profilo criminale permanente, timore.
+        Legge::scalda($attaccanteId, $piazzaId, GameConfig::int('pvp.calore', 60) * 1_000_000 / 100, 90);
+        Organico::reputazione($attaccanteId, 0.0, $esito === 'vinto' ? 8.0 : 3.0);
+        if ($esito === 'perso' || $esito === 'fuga') {
+            Organico::reputazione($difensoreId, 0.0, 5.0);
+        }
+        Legge::prove($attaccanteId, 14.0, 'una rissa in strada');
 
         $nomeA = self::nome($attaccanteId);
         $nomeD = self::nome($difensoreId);
@@ -168,16 +208,17 @@ final class Rivalita
         }
 
         return ['ok' => true, 'esito' => $esito, 'racconto' => $racconto,
-                'bottino' => $bottino, 'unita' => $unita];
+                'bottino' => (int) $e['bottino'], 'unita' => (int) $e['unita']];
     }
 
-    /** @return array{0:int,1:int} contante e unità prese */
-    private static function spoglia(int $vittimaId, int $vincitoreId): array
+    /**
+     * @param array<string,mixed> $v la vittima, bloccata @param array<string,mixed> $w il vincitore, bloccato
+     * @return array{0:int,1:int} contante e unità prese
+     */
+    private static function spoglia(array $v, array $w): array
     {
-        $v = Database::first('SELECT contante, mezzo FROM personaggi WHERE id = ?', [$vittimaId]);
-        if ($v === null) {
-            return [0, 0];
-        }
+        $vittimaId = (int) $v['id'];
+        $vincitoreId = (int) $w['id'];
         $carico = Listino::carico($vittimaId);
         $valoreMerce = array_sum(array_column($carico, 'costo'));
         $unita = array_sum(array_column($carico, 'quantita'));
@@ -195,8 +236,7 @@ final class Rivalita
         Contabilita::segna($vincitoreId, 'rapina', 'sporco', $sporco, 'presi a qualcuno');
 
         // La merce passa di mano solo per quanto ci sta addosso al vincitore.
-        $spazio = Logistica::capienza(Database::first('SELECT * FROM personaggi WHERE id = ?', [$vincitoreId]) ?? [])
-                - Listino::ingombroUsato($vincitoreId);
+        $spazio = Logistica::capienza($w) - Listino::ingombroUsato($vincitoreId);
         $prese = 0;
         foreach ($carico as $c) {
             $ing = (int) $c['bene']['ingombro'];
@@ -241,6 +281,24 @@ final class Rivalita
         return (int) ($r['q'] ?? 0);
     }
 
+    /**
+     * La salute di adesso: quella scritta più quella tornata dall'ultima
+     * ferita. Si calcola, non si aspetta il battito — come il calore e il
+     * debito. Prima non tornava mai, se non uscendo dall'ospedale.
+     *
+     * @param array<string,mixed> $p
+     */
+    public static function saluteOra(array $p): int
+    {
+        $s = (int) ($p['salute'] ?? 100);
+        $da = Clock::daDb(($p['salute_agg_a'] ?? null) === null ? null : (string) $p['salute_agg_a']);
+        if ($s >= 100 || $da === null) {
+            return min(100, $s);
+        }
+        $ore = max(0, Clock::adesso()->getTimestamp() - $da->getTimestamp()) / 3600.0;
+        return min(100, $s + (int) floor($ore * GameConfig::int('pvp.guarigione_ora', 10)));
+    }
+
     /** @param array<string,mixed> $p */
     public static function inOspedale(array $p): bool
     {
@@ -272,17 +330,22 @@ final class Rivalita
             return ['ok' => false, 'error' => 'Su te stesso no.'];
         }
         $prezzo = GameConfig::int('pvp.soffiata_prezzo', 2_000_000);
-        $p = Database::first('SELECT contante FROM personaggi WHERE id = ?', [$daId]);
-        if ($p === null || (int) $p['contante'] < $prezzo) {
+        $errore = self::nonQui($daId, $controId);
+        if ($errore !== null) {
+            return ['ok' => false, 'error' => $errore];
+        }
+        $pagata = Fila::per($daId, static function (?array $p) use ($daId, $prezzo): bool {
+            if ($p === null || (int) $p['contante'] < $prezzo) {
+                return false;
+            }
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $daId]);
+            Contabilita::segna($daId, 'soffiata', 'sporco', -$prezzo, 'una telefonata');
+            return true;
+        });
+        if (!$pagata) {
             return ['ok' => false, 'error' => 'Serve ' . lire($prezzo) . ' in contanti: '
                 . 'una telefonata anonima costa poco, una che venga presa sul serio no.'];
         }
-        if (Database::first('SELECT id FROM personaggi WHERE id = ?', [$controId]) === null) {
-            return ['ok' => false, 'error' => 'Non c\'è nessuno con quel nome.'];
-        }
-
-        Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $daId]);
-        Contabilita::segna($daId, 'soffiata', 'sporco', -$prezzo, 'una telefonata');
 
         $prove = (float) GameConfig::int('pvp.soffiata_prove', 22);
         $ritorta = random_int(1, 1000) / 1000 < (float) GameConfig::get('pvp.soffiata_ritorno', 0.25);
@@ -313,29 +376,37 @@ final class Rivalita
         if ($padroneId === $bersaglioId) {
             return ['ok' => false, 'error' => 'Su te stesso no.'];
         }
-        $u = Database::first('SELECT * FROM uomini WHERE id = ? AND personaggio_id = ? AND stato = \'libero\'',
-            [$uomoId, $padroneId]);
-        if ($u === null) {
-            return ['ok' => false, 'error' => 'Non hai quest\'uomo, o non è libero.'];
-        }
-        if (Database::first("SELECT id FROM spie WHERE padrone_id = ? AND bersaglio_id = ? AND esito = 'dentro'",
-                [$padroneId, $bersaglioId]) !== null) {
-            return ['ok' => false, 'error' => 'Ne hai già uno dentro.'];
+        $errore = self::nonQui($padroneId, $bersaglioId);
+        if ($errore !== null) {
+            return ['ok' => false, 'error' => $errore];
         }
         $prezzo = GameConfig::int('pvp.spia_prezzo', 3_000_000);
-        $p = Database::first('SELECT contante FROM personaggi WHERE id = ?', [$padroneId]);
-        if ($p === null || (int) $p['contante'] < $prezzo) {
-            return ['ok' => false, 'error' => 'Infiltrare qualcuno costa ' . lire($prezzo) . ' in contanti.'];
-        }
+        // Uomo, spia già dentro e contante si guardano col padrone in fila:
+        // due clic insieme mandavano lo stesso uomo dentro due volte, pagando
+        // due volte, o mandavano via un corriere appena partito col carico.
+        return Fila::per($padroneId, static function (?array $p) use ($padroneId, $bersaglioId, $uomoId, $prezzo): array {
+            $u = Database::first('SELECT * FROM uomini WHERE id = ? AND personaggio_id = ? AND stato = \'libero\' FOR UPDATE',
+                [$uomoId, $padroneId]);
+            if ($p === null || $u === null) {
+                return ['ok' => false, 'error' => 'Non hai quest\'uomo, o non è libero.'];
+            }
+            if (Database::first("SELECT id FROM spie WHERE padrone_id = ? AND bersaglio_id = ? AND esito = 'dentro'",
+                    [$padroneId, $bersaglioId]) !== null) {
+                return ['ok' => false, 'error' => 'Ne hai già uno dentro.'];
+            }
+            if ((int) $p['contante'] < $prezzo) {
+                return ['ok' => false, 'error' => 'Infiltrare qualcuno costa ' . lire($prezzo) . ' in contanti.'];
+            }
 
-        Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $padroneId]);
-        Database::run('DELETE FROM uomini WHERE id = ?', [$uomoId]);   // passa dall'altra parte
-        Database::run(
-            'INSERT INTO spie (padrone_id, bersaglio_id, nome, messa_at, agg_a) VALUES (?, ?, ?, ?, ?)',
-            [$padroneId, $bersaglioId, (string) $u['nome'], Clock::perDb(), Clock::perDb()]
-        );
-        Contabilita::segna($padroneId, 'spia', 'sporco', -$prezzo, (string) $u['nome'] . ', messo dentro');
-        return ['ok' => true, 'nome' => (string) $u['nome']];
+            Database::run('UPDATE personaggi SET contante = contante - ? WHERE id = ?', [$prezzo, $padroneId]);
+            Database::run('DELETE FROM uomini WHERE id = ?', [$uomoId]);   // passa dall'altra parte
+            Database::run(
+                'INSERT INTO spie (padrone_id, bersaglio_id, nome, messa_at, agg_a) VALUES (?, ?, ?, ?, ?)',
+                [$padroneId, $bersaglioId, (string) $u['nome'], Clock::perDb(), Clock::perDb()]
+            );
+            Contabilita::segna($padroneId, 'spia', 'sporco', -$prezzo, (string) $u['nome'] . ', messo dentro');
+            return ['ok' => true, 'nome' => (string) $u['nome']];
+        });
     }
 
     /** Quello che la spia vede. @return array<string,mixed>|null */
@@ -396,8 +467,12 @@ final class Rivalita
 
             Legge::segnale((int) $s['padrone_id'], 'spia',
                 $s['nome'] . ' è stato scoperto: ' . self::DISCOPERTA[$esito], 4);
-            Legge::segnale((int) $s['bersaglio_id'], 'spia',
-                'C\'era uno di un altro dentro casa tua. Adesso non c\'è più.', 4);
+            // Chi è stato spiato, di norma, non sa da chi. Tranne quando la spia
+            // l'hanno fatta parlare: è il solo esito che dà un nome.
+            Legge::segnale((int) $s['bersaglio_id'], 'spia', $esito === 'torturata'
+                ? 'C\'era uno dentro casa tua. Prima di smettere di parlare ha detto chi lo mandava: '
+                  . self::nome((int) $s['padrone_id']) . '.'
+                : 'C\'era uno di un altro dentro casa tua. Adesso non c\'è più.', 4);
 
             if ($esito === 'voltafaccia') {
                 // Passato dall'altra parte: adesso racconta di chi l'aveva mandato.
@@ -418,52 +493,71 @@ final class Rivalita
      */
     public static function rapina(int $rapinatoreId, int $corsaId): array
     {
-        $c = Database::first(
-            'SELECT c.*, u.nome AS corriere FROM corse c JOIN uomini u ON u.id = c.uomo_id
-              WHERE c.id = ? AND c.esito = \'in_corso\'', [$corsaId]);
-        if ($c === null) {
-            return ['ok' => false, 'error' => 'Quella corsa non è più per strada.'];
-        }
-        if ((int) $c['personaggio_id'] === $rapinatoreId) {
-            return ['ok' => false, 'error' => 'È roba tua.'];
-        }
-        $r = Database::first('SELECT * FROM personaggi WHERE id = ?', [$rapinatoreId]);
-        if ($r === null || Legge::inCarcere($r) || self::inOspedale($r)) {
-            return ['ok' => false, 'error' => 'Non sei in condizione.'];
-        }
-        // Si può colpire solo una rotta che passa da dove sei.
-        if ((int) $r['piazza_id'] !== (int) $c['da_piazza_id'] && (int) $r['piazza_id'] !== (int) $c['a_piazza_id']) {
-            return ['ok' => false, 'error' => 'Quella rotta non passa di qui.'];
+        // Il rapinatore in fila, e la corsa bloccata: la stessa corsa poteva
+        // essere presa da due rapinatori insieme, o presa mentre il battito la
+        // consegnava al deposito del padrone. In entrambi i casi la merce
+        // finiva in due posti.
+        $esito = Fila::per($rapinatoreId, static function (?array $r) use ($rapinatoreId, $corsaId): array {
+            $c = Database::first(
+                'SELECT c.*, u.nome AS corriere FROM corse c JOIN uomini u ON u.id = c.uomo_id
+                  WHERE c.id = ? AND c.esito = \'in_corso\' FOR UPDATE', [$corsaId]);
+            if ($c === null) {
+                return ['ok' => false, 'error' => 'Quella corsa non è più per strada.'];
+            }
+            if ((int) $c['personaggio_id'] === $rapinatoreId) {
+                return ['ok' => false, 'error' => 'È roba tua.'];
+            }
+            if ($r === null || Legge::inCarcere($r) || self::inOspedale($r)) {
+                return ['ok' => false, 'error' => 'Non sei in condizione.'];
+            }
+            // In viaggio `piazza_id` è già la destinazione: senza questo
+            // controllo si rapinava all'arrivo prima di essere arrivati.
+            if ($r['arrivo_at'] !== null) {
+                return ['ok' => false, 'error' => 'Prima arriva.'];
+            }
+            // Si può colpire solo una rotta che passa da dove sei.
+            if ((int) $r['piazza_id'] !== (int) $c['da_piazza_id'] && (int) $r['piazza_id'] !== (int) $c['a_piazza_id']) {
+                return ['ok' => false, 'error' => 'Quella rotta non passa di qui.'];
+            }
+
+            $armi = self::armiAddosso($rapinatoreId);
+            $riesce = random_int(1, 1000) / 1000 < min(0.85, 0.35 + $armi * 0.12 + (float) $r['sangue_freddo'] / 400);
+            if (!$riesce) {
+                return ['ok' => true, 'riuscita' => false, 'unita' => 0, 'piazza' => (int) $r['piazza_id'], 'corsa' => $c];
+            }
+
+            Database::run('UPDATE corse SET esito = \'sequestrata\', chiusa_at = ? WHERE id = ?',
+                [Clock::perDb(), $corsaId]);
+            Database::run('UPDATE uomini SET stato = \'libero\' WHERE id = ?', [(int) $c['uomo_id']]);
+
+            $spazio = Logistica::capienza($r) - Listino::ingombroUsato($rapinatoreId);
+            $bene = Listino::beni()[(int) $c['bene_id']] ?? null;
+            $ing = $bene === null ? 1 : (int) $bene['ingombro'];
+            $quante = min((int) $c['quantita'], $ing > 0 ? intdiv(max(0, $spazio), $ing) : 0);
+
+            if ($quante > 0) {
+                $medio = (int) round((int) $c['costo_totale'] / max(1, (int) $c['quantita']));
+                Database::run(
+                    'INSERT INTO carico (personaggio_id, bene_id, quantita, costo_totale) VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE quantita = quantita + VALUES(quantita),
+                                             costo_totale = costo_totale + VALUES(costo_totale)',
+                    [$rapinatoreId, (int) $c['bene_id'], $quante, $medio * $quante]
+                );
+            }
+            return ['ok' => true, 'riuscita' => true, 'unita' => $quante, 'piazza' => (int) $r['piazza_id'], 'corsa' => $c];
+        });
+        if (!$esito['ok']) {
+            return $esito;
         }
 
-        $armi = self::armiAddosso($rapinatoreId);
-        $riesce = random_int(1, 1000) / 1000 < min(0.85, 0.35 + $armi * 0.12 + (float) $r['sangue_freddo'] / 400);
-
-        Legge::scalda($rapinatoreId, (int) $r['piazza_id'], 25_000_000, 80);
+        $c = $esito['corsa'];
+        $quante = (int) $esito['unita'];
+        Legge::scalda($rapinatoreId, (int) $esito['piazza'], 25_000_000, 80);
         Legge::prove($rapinatoreId, 10.0, 'una rapina su strada');
 
-        if (!$riesce) {
+        if (!$esito['riuscita']) {
             Legge::segnale($rapinatoreId, 'rapina', 'Il corriere ti ha visto arrivare e ha cambiato strada.', 2);
             return ['ok' => true, 'unita' => 0];
-        }
-
-        Database::run('UPDATE corse SET esito = \'sequestrata\', chiusa_at = ? WHERE id = ?',
-            [Clock::perDb(), $corsaId]);
-        Database::run('UPDATE uomini SET stato = \'libero\' WHERE id = ?', [(int) $c['uomo_id']]);
-
-        $spazio = Logistica::capienza($r) - Listino::ingombroUsato($rapinatoreId);
-        $bene = Listino::beni()[(int) $c['bene_id']] ?? null;
-        $ing = $bene === null ? 1 : (int) $bene['ingombro'];
-        $quante = min((int) $c['quantita'], $ing > 0 ? intdiv(max(0, $spazio), $ing) : 0);
-
-        if ($quante > 0) {
-            $medio = (int) round((int) $c['costo_totale'] / max(1, (int) $c['quantita']));
-            Database::run(
-                'INSERT INTO carico (personaggio_id, bene_id, quantita, costo_totale) VALUES (?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE quantita = quantita + VALUES(quantita),
-                                         costo_totale = costo_totale + VALUES(costo_totale)',
-                [$rapinatoreId, (int) $c['bene_id'], $quante, $medio * $quante]
-            );
         }
 
         $nomeR = self::nome($rapinatoreId);
@@ -477,6 +571,30 @@ final class Rivalita
     }
 
     // --- Aiutanti -----------------------------------------------------------------------
+
+    /**
+     * Perché non si può fare qualcosa a qualcuno adesso, o null se si può.
+     *
+     * Soffiata e spia si fanno a chi è qui (§13.2, la vetrina dei presenti), e
+     * non da dentro un carcere o da un letto d'ospedale. La pagina le offriva
+     * solo così, ma il server non lo controllava: con una richiesta fatta a
+     * mano si soffiava su chiunque, ovunque, anche dalla cella.
+     */
+    private static function nonQui(int $daId, int $controId): ?string
+    {
+        $da = Database::first('SELECT * FROM personaggi WHERE id = ?', [$daId]);
+        $a  = Database::first('SELECT * FROM personaggi WHERE id = ?', [$controId]);
+        if ($da === null || $a === null) {
+            return 'Non c\'è nessuno con quel nome.';
+        }
+        if (Legge::inCarcere($da) || self::inOspedale($da)) {
+            return 'Non sei in condizione.';
+        }
+        if ((int) $da['piazza_id'] !== (int) $a['piazza_id'] || $da['arrivo_at'] !== null || $a['arrivo_at'] !== null) {
+            return 'Non è qui.';
+        }
+        return null;
+    }
 
     public static function nome(int $personaggioId): string
     {

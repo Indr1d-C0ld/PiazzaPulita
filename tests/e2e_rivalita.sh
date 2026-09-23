@@ -139,6 +139,14 @@ maggiore "e costa"                   "0" "$(dbq "SELECT costo FROM soffiate WHER
 maggiore "le prove finiscono su qualcuno" "0" \
   "$(dbq "SELECT COALESCE(SUM(prove),0) FROM fascicoli WHERE personaggio_id IN (${AID},${BID})")"
 
+# Si soffia su chi è qui: la vetrina la offre così, e ora anche il server.
+ALTROVE=$(dbq "SELECT id FROM piazze WHERE id <> ${QUI} LIMIT 1")
+dbq "UPDATE personaggi SET piazza_id=${ALTROVE} WHERE id=${BID}" >/dev/null
+TOK=$(a "${BASE_URL}/altri" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/altri/soffiata" --data-urlencode "_token=${TOK}" --data-urlencode "chi=${BID}"
+verifica "su chi non è qui non si soffia" "1" "$(dbq "SELECT COUNT(*) FROM soffiate WHERE da_id=${AID} AND contro_id=${BID}")"
+dbq "UPDATE personaggi SET piazza_id=${QUI} WHERE id=${BID}" >/dev/null
+
 # --- La spia --------------------------------------------------------------------
 dbq "UPDATE personaggi SET contante=9000000 WHERE id=${AID}" >/dev/null
 dbq "INSERT INTO uomini (personaggio_id, nome, ruolo, competenza, lealta, stipendio_ora, stato,
@@ -164,9 +172,34 @@ BAT=$(dbq "SELECT id FROM batterie WHERE capo_id=${AID}")
 verifica "la batteria è in piedi" "si" "$(if [[ -n "${BAT}" ]]; then echo si; else echo no; fi)"
 verifica "e costa denaro pulito"  "2000000" "$(dbq "SELECT pulito FROM personaggi WHERE id=${AID}")"
 
+# Entrare è chiedere: fino al sì del capo si resta fuori. Prima si entrava da
+# soli, e bastava per non pagare il pizzo a chi comanda la piazza.
 TOK=$(b "${BASE_URL}/batteria" | token_da)
 b -o /dev/null -L -X POST "${BASE_URL}/batteria/entra" --data-urlencode "_token=${TOK}" --data-urlencode "batteria=${BAT}"
-verifica "e ci si entra" "2" "$(dbq "SELECT COUNT(*) FROM personaggi WHERE batteria_id=${BAT}")"
+verifica "chiedere non basta per entrare" "1" "$(dbq "SELECT COUNT(*) FROM personaggi WHERE batteria_id=${BAT}")"
+verifica "la domanda arriva al capo"     "1" "$(dbq "SELECT COUNT(*) FROM batteria_domande WHERE personaggio_id=${BID} AND batteria_id=${BAT}")"
+a "${BASE_URL}/batteria" | grep -q "Chi chiede di entrare" \
+  && verifica "e il capo la vede" "si" "si" || verifica "e il capo la vede" "si" "no"
+TOK=$(b "${BASE_URL}/batteria" | token_da)
+verifica "solo il capo risponde" "0" "$(b -o /dev/null -L -X POST "${BASE_URL}/batteria/domanda" --data-urlencode "_token=${TOK}" \
+  --data-urlencode "chi=${BID}" --data-urlencode "esito=si" >/dev/null; dbq "SELECT COUNT(*) FROM personaggi WHERE id=${BID} AND batteria_id=${BAT}")"
+TOK=$(a "${BASE_URL}/batteria" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/batteria/domanda" --data-urlencode "_token=${TOK}" \
+  --data-urlencode "chi=${BID}" --data-urlencode "esito=si"
+verifica "e ci si entra quando dice sì" "2" "$(dbq "SELECT COUNT(*) FROM personaggi WHERE batteria_id=${BAT}")"
+verifica "e la domanda si chiude"      "0" "$(dbq "SELECT COUNT(*) FROM batteria_domande WHERE personaggio_id=${BID}")"
+
+# Il capo con qualcuno dentro non esce: prima passa la mano. Prima il modo di
+# passarla non c'era, e il capo restava capo per sempre.
+TOK=$(a "${BASE_URL}/batteria" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/batteria/esci" --data-urlencode "_token=${TOK}"
+verifica "il capo non esce lasciando gli altri" "${BAT}" "$(dbq "SELECT COALESCE(batteria_id,0) FROM personaggi WHERE id=${AID}")"
+TOK=$(a "${BASE_URL}/batteria" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/batteria/capo" --data-urlencode "_token=${TOK}" --data-urlencode "membro=${BID}"
+verifica "passa la mano"                 "${BID}" "$(dbq "SELECT capo_id FROM batterie WHERE id=${BAT}")"
+TOK=$(b "${BASE_URL}/batteria" | token_da)
+b -o /dev/null -L -X POST "${BASE_URL}/batteria/capo" --data-urlencode "_token=${TOK}" --data-urlencode "membro=${AID}"
+verifica "e se la riprende"              "${AID}" "$(dbq "SELECT capo_id FROM batterie WHERE id=${BAT}")"
 
 # Il territorio si tiene lavorandoci: una compravendita vera deve lasciare punti.
 dbq "UPDATE personaggi SET contante=5000000, salute=100, ospedale_fino_a=NULL, carcere_fino_a=NULL WHERE id=${AID};
@@ -182,7 +215,14 @@ dbq "UPDATE presenze SET punti=100000, agg_a=NOW(3) WHERE piazza_id=${QUI} AND b
 battito
 verifica "sopra soglia la piazza è tua" "${BAT}" "$(dbq "SELECT COALESCE(batteria_id,0) FROM territori WHERE piazza_id=${QUI}")"
 
-dbq "UPDATE personaggi SET batteria_id=NULL, contante=5000000 WHERE id=${BID};
+# Il capo manda via B: da estraneo, B torna a pagare il pizzo — anche con una
+# domanda d'ingresso appena fatta, che non conta finché non è accolta.
+TOK=$(a "${BASE_URL}/batteria" | token_da)
+a -o /dev/null -L -X POST "${BASE_URL}/batteria/caccia" --data-urlencode "_token=${TOK}" --data-urlencode "membro=${BID}"
+verifica "il capo manda via uno dei suoi" "0" "$(dbq "SELECT COALESCE(batteria_id,0) FROM personaggi WHERE id=${BID}")"
+TOK=$(b "${BASE_URL}/batteria" | token_da)
+b -o /dev/null -L -X POST "${BASE_URL}/batteria/entra" --data-urlencode "_token=${TOK}" --data-urlencode "batteria=${BAT}"
+dbq "UPDATE personaggi SET contante=5000000 WHERE id=${BID};
      UPDATE batterie SET cassa=0 WHERE id=${BAT}" >/dev/null
 TOK=$(b "${BASE_URL}/strada" | token_da)
 b -o /dev/null -L -X POST "${BASE_URL}/ordina" --data-urlencode "_token=${TOK}" \

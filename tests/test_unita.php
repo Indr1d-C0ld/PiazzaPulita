@@ -462,15 +462,15 @@ $vuoto = [
     'operazioni' => 0, 'vendite' => 0, 'margine_max' => 0, 'beni_trattati' => 0, 'beni_totali' => 10,
     'citta_lavorate' => 0, 'citta_totali' => 9, 'pulito' => 0, 'debito' => 0, 'prestiti' => 0,
     'lavato' => 0, 'mezzo' => '', 'depositi' => 0, 'segnali' => 0, 'archiviati' => 0, 'arresti' => 0,
-    'in_carcere' => false, 'profilo' => 0, 'rispetto' => 0.0, 'giorni_pulito' => 0, 'vinti' => 0,
-    'spie' => 0, 'batteria' => 0, 'territori' => 0, 'uomini' => 0, 'uomini_fedeli' => 0,
+    'in_carcere' => false, 'profilo' => 0, 'rispetto' => 0.0, 'soglia_fornitore' => 10.0,
+    'giorni_pulito' => 0, 'vinti' => 0, 'spie' => 0, 'batteria' => 0, 'territori' => 0, 'uomini' => 0, 'uomini_fedeli' => 0,
 ];
 $pieno = [
     'operazioni' => 500, 'vendite' => 300, 'margine_max' => 90_000_000, 'beni_trattati' => 10,
     'beni_totali' => 10, 'citta_lavorate' => 9, 'citta_totali' => 9, 'pulito' => 900_000_000,
     'debito' => 0, 'prestiti' => 3, 'lavato' => 400_000_000, 'mezzo' => 'furgone', 'depositi' => 7,
     'segnali' => 12, 'archiviati' => 2, 'arresti' => 4, 'in_carcere' => false, 'profilo' => 40,
-    'rispetto' => 88.0, 'giorni_pulito' => 120, 'vinti' => 9, 'spie' => 2, 'batteria' => 1,
+    'rispetto' => 88.0, 'soglia_fornitore' => 10.0, 'giorni_pulito' => 120, 'vinti' => 9, 'spie' => 2, 'batteria' => 1,
     'territori' => 6, 'uomini' => 6, 'uomini_fedeli' => 6,
 ];
 $sbloccatiAZero = []; $mancantiAlMassimo = [];
@@ -490,6 +490,9 @@ prova('l\'incensurato vuole ANCHE il profilo', false,
     ($catalogo['incensurato']['cond'])(['giorni_pulito' => 99] + $vuoto));
 prova('e con il profilo alto sì',           true,
     ($catalogo['incensurato']['cond'])(['giorni_pulito' => 99, 'profilo' => 7] + $vuoto));
+prova('il primo fornitore arriva con la sua soglia, non con venti', true,
+    ($catalogo['fornitore']['cond'])(['rispetto' => 10.0] + $vuoto));
+prova('e non prima', false, ($catalogo['fornitore']['cond'])(['rispetto' => 9.9] + $vuoto));
 prova('«nessuno parla» vuole tutti fedeli', false,
     ($catalogo['nessuno_parla']['cond'])(['uomini' => 4, 'uomini_fedeli' => 3] + $vuoto));
 
@@ -610,7 +613,7 @@ $fornitoriFinti = [
 $personaggioFinto = ['id' => 1, 'contante' => 300000, 'pulito' => 0, 'piazza_id' => 1,
                      'capienza' => 80, 'mezzo' => null];
 $contiFinti = ['sporco' => 300000, 'pulito' => 97500, 'in_lavaggio' => 50000,
-    'debito' => 1500000, 'tetto' => 4500000, 'al_tetto' => false, 'interesse_giorno' => 150000,
+    'debito' => 1500000, 'tetto' => 4500000, 'al_tetto' => false, 'interesse_giorno' => 150000, 'tasso' => 0.10,
     'capacita_ora' => 150000, 'prestabile' => 695000,
     'canali' => [['codice' => 'bar', 'nome' => 'Il bar', 'descrizione' => 'x', 'commissione' => 0.35,
                   'capacita' => 150000, 'coda' => 50000, 'pronto' => 0, 'lavato' => 150000,
@@ -781,7 +784,7 @@ $viste = [
         'mezzi' => ['utilitaria' => ['codice' => 'utilitaria', 'nome' => 'Una 127', 'descrizione' => 'z',
                                      'capienza' => 120, 'prezzo' => 2500000, 'kmh_citta' => 26.0,
                                      'kmh_paese' => 75.0, 'costo_km' => 45]],
-        'mezzoMio' => null, 'capienza' => 80, 'usato' => 30,
+        'mezzoMio' => null, 'rivendita' => 0, 'capienza' => 80, 'usato' => 30,
         'depositi' => [], 'movimenti' => [],
     ],
     'gioco/mappa'       => [
@@ -823,7 +826,7 @@ $viste = [
                      'carcere_fino_a' => null, 'profilo' => 2, 'batteria' => null, 'spiato' => 0,
                      'avatar' => null, 'avatar_file' => null]],
         'spiati' => [], 'corse' => [], 'uomini' => [['id' => 3, 'nome' => 'Gino', 'stato' => 'libero']],
-        'inOspedale' => false, 'mancano' => 0,
+        'inOspedale' => false, 'mancano' => 0, 'salute' => 64, 'guarigione' => 10,
         'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
         'presenti' => [], 'voci' => [], 'baratti' => [], 'mioCarico' => [],
         'beni' => [], 'lunghezzaVoce' => 220,
@@ -842,7 +845,7 @@ $viste = [
                            'carico' => [['bene' => $beneFinto, 'quantita' => 12]]]],
         'corse' => [['id' => 1, 'quantita' => 40, 'bene' => 'Fumo', 'padrone' => 'Caio',
                      'da_piazza' => 'Lambrate', 'a_piazza' => 'Bovisa', 'arrivo_at' => '2026-09-19 18:00:00']],
-        'uomini' => [], 'inOspedale' => true, 'mancano' => 7200,
+        'uomini' => [], 'inOspedale' => true, 'mancano' => 7200, 'salute' => 100, 'guarigione' => 10,
         'prezzi' => ['spia' => 3000000, 'soffiata' => 2000000],
         'presenti' => [], 'mioCarico' => [['bene' => $beneFinto, 'quantita' => 12, 'costo' => 100, 'medio' => 8, 'ingombro' => 12]],
         'beni' => [1 => $beneFinto], 'lunghezzaVoce' => 220,
@@ -871,6 +874,7 @@ $viste = [
     'gioco/batteria (senza)' => ['__vista' => 'gioco/batteria', 'title' => 'Batterie',
         'p' => $personaggioFinto + ['pulito' => 12_000_000], 'mia' => null, 'membri' => [],
         'territori' => [], 'sonoCapo' => false, 'fondazione' => 10_000_000, 'pizzo' => 0.04,
+        'domande' => [], 'miaDomanda' => ['nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'fatta_at' => '2026-09-19 12:00:00'],
         'elenco' => [['id' => 1, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'capo' => 'Tizio',
                       'motto' => 'Poche parole', 'membri' => 3, 'piazze' => 2, 'cassa' => 0,
                       'capo_id' => 9, 'creata_at' => '2026-09-01 10:00:00']]],
@@ -878,7 +882,11 @@ $viste = [
         'p' => $personaggioFinto + ['pulito' => 1_000_000, 'batteria_id' => 1],
         'mia' => ['id' => 1, 'nome' => 'I Tre Ponti', 'sigla' => 'TRP', 'capo_id' => 1,
                   'cassa' => 4_500_000, 'motto' => 'Poche parole', 'creata_at' => '2026-09-01 10:00:00'],
-        'membri' => [['id' => 1, 'username' => 'Mario Rossi', 'pulito' => 0, 'rispetto' => 20.0, 'timore' => 5.0]],
+        'membri' => [['id' => 1, 'username' => 'Mario Rossi', 'pulito' => 0, 'rispetto' => 20.0, 'timore' => 5.0],
+                     ['id' => 9, 'username' => 'Tizio', 'pulito' => 0, 'rispetto' => 8.0, 'timore' => 2.0]],
+        'domande' => [['id' => 12, 'username' => 'Caio', 'rispetto' => 3.0, 'timore' => 1.0, 'profilo' => 2,
+                       'fatta_at' => '2026-09-19 12:00:00']],
+        'miaDomanda' => null,
         'territori' => [['piazza' => 'Lambrate', 'citta' => 'Milano', 'presenza' => 412.5, 'dal' => '2026-09-18 10:00:00']],
         'sonoCapo' => true, 'fondazione' => 10_000_000, 'pizzo' => 0.04, 'elenco' => []],
     'admin/mondo'       => ['title' => 'Il mondo', 'citta' => $citta,
@@ -962,6 +970,24 @@ prova('la vetrina mostra la faccia di chi c\'è', true, str_contains($vetrina, '
 prova('e la voce di piazza',                     true, str_contains($vetrina, 'Cerco roba buona.'));
 prova('e distingue l\'avviso dalla voce',        true, str_contains($vetrina, 'voce--avviso'));
 prova('e le proposte di scambio',                true, str_contains($vetrina, 'Acidi'));
+
+$acciaccato = View::render('gioco/altri', $viste['gioco/altri'], null);
+prova('chi è ferito vede la sua salute',         true, str_contains($acciaccato, '64 su 100'));
+prova('all\'ospedale non gliela si ripete',      false, str_contains($vetrina, 'acciaccato'));
+
+// La batteria del capo: le domande d'ingresso, il passaggio di mano e la
+// cacciata. Sono tre moduli che prima non esistevano, e senza non si governa.
+$capo = View::render('gioco/batteria', $viste['gioco/batteria (capo)'], null);
+prova('il capo vede chi chiede di entrare',      true, str_contains($capo, 'Chi chiede di entrare') && str_contains($capo, 'Caio'));
+prova('e può passare la mano',                   true, str_contains($capo, '/batteria/capo'));
+prova('e mandare via, ma non se stesso',         1, substr_count($capo, 'name="membro" value="9"') >= 1 ? 1 : 0);
+$fuori = View::render('gioco/batteria', $viste['gioco/batteria (senza)'], null);
+prova('chi ha chiesto vede la domanda in attesa', true, str_contains($fuori, 'Aspetti la risposta'));
+prova('e si chiede, non si entra',               true, str_contains($fuori, '>chiedi<'));
+
+// Il tasso che si vede è quello che si paga, scritto all'italiana.
+prova('percento: tondo senza decimali',          '10' . "\u{202F}%", percento(0.10));
+prova('percento: col decimale quando serve',     '8,5' . "\u{202F}%", percento(0.085));
 
 // I comandi per moderare la fotografia si vedono SOLO se chi guarda amministra,
 // e mai sul proprio profilo: una casella dimenticata in una condizione qui

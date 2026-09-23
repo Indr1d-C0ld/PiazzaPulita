@@ -89,7 +89,7 @@ use App\Sim\Viaggio;
   <h2 style="margin-top:0">Quello che devi</h2>
   <?php if ($conti['debito'] > 0): ?>
     <p class="sommario">
-      <strong><?= e(lire($conti['debito'])) ?></strong>, che crescono del dieci per cento al giorno —
+      <strong><?= e(lire($conti['debito'])) ?></strong>, che crescono del <?= e(percento($conti['tasso'])) ?> al giorno —
       <?= e(lire($conti['interesse_giorno'])) ?> al giorno, e non aspettano che tu apra la pagina.
       <?php if ($conti['al_tetto']): ?>
         <span style="color:var(--rosso)">Sei al tetto: il debito non cresce più, ma da qui in poi
@@ -125,7 +125,8 @@ use App\Sim\Viaggio;
       <div class="azioni" style="margin-top:.7rem">
         <button class="bottone--fantasma" <?= $conti['prestabile'] < 1 ? 'disabled' : '' ?>>chiedi</button>
       </div>
-      <p class="aiuto">Il dieci per cento al giorno corre da subito. Serve per comprare
+      <p class="aiuto">Il <?= e(percento($conti['tasso'])) ?> al giorno corre da subito — meno, man mano che
+         ti fai un nome pagando. Serve per comprare
          quello che ti fa guadagnare, non per campare.</p>
     </form>
   </div>
@@ -139,6 +140,9 @@ use App\Sim\Viaggio;
     (<?= e(quantita($usato)) ?> occupati)<?= $mezzoMio !== null ? ' — ' . e($mezzoMio['nome']) : ' — a piedi, con un borsone' ?>.
     Un mezzo si compra col pulito e ti porta anche in giro da solo: niente attese,
     solo benzina, e nessuno a cui dire dove vai.
+    <?php if ($rivendita > 0): ?>
+      Cambiandolo, il tuo lo rivendi di fretta: <?= e(lire($rivendita)) ?>, che contano nel prezzo.
+    <?php endif; ?>
   </p>
   <div class="tabella-avvolgi">
     <table class="tabella">
@@ -160,7 +164,7 @@ use App\Sim\Viaggio;
                 <?= csrf_field() ?>
                 <input type="hidden" name="mezzo" value="<?= e($codice) ?>">
                 <button class="bottone--fantasma bottone--minuto"
-                        <?= $conti['pulito'] < (int) $m['prezzo'] ? 'disabled' : '' ?>>compra</button>
+                        <?= $conti['pulito'] + $rivendita < (int) $m['prezzo'] ? 'disabled' : '' ?>>compra</button>
               </form>
             <?php endif; ?>
           </td>
